@@ -15,8 +15,11 @@ public class AdminController {
 
     private final SystemSettingsRepository settingsRepository;
 
+    // No caching here on purpose: SystemSettingsRepository.getSettings() already caches
+    // under "systemSettings". Caching this method too reused the same cache name and the
+    // same default key with an incompatible return type (ResponseEntity vs Optional),
+    // which poisoned the shared entry and broke HealthStatusService with a ClassCastException.
     @GetMapping
-    @org.springframework.cache.annotation.Cacheable(value = "systemSettings")
     public ResponseEntity<SystemSettings> getSettings() {
         SystemSettings settings = settingsRepository.getSettings()
             .orElseGet(this::initializeDefaultSettings);

@@ -26,7 +26,26 @@ dependencies {
     runtimeOnly("org.postgresql:postgresql")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
-    testImplementation("org.testcontainers:junit-jupiter:1.19.3")
-    testImplementation("org.testcontainers:postgresql:1.19.3")
-    testImplementation("org.testcontainers:neo4j:1.19.3")
+    // Testcontainers >= 1.20 ships docker-java that speaks Docker API >= 1.40.
+    // Older 1.19.x pulls docker-java 3.3.6 (API 1.32), which modern Docker daemons reject:
+    // "client version 1.32 is too old. Minimum supported API version is 1.40".
+    testImplementation("org.testcontainers:junit-jupiter:1.21.4")
+    testImplementation("org.testcontainers:postgresql:1.21.4")
+    testImplementation("org.testcontainers:neo4j:1.21.4")
+}
+
+// Spring Boot's BOM manages testcontainers core to 1.19.x, which drags in docker-java
+// 3.3.6 (Docker API 1.32) and breaks against modern daemons:
+// "client version 1.32 is too old. Minimum supported API version is 1.40".
+// Overriding the managed version here takes precedence over the imported Spring BOM.
+dependencyManagement {
+    imports {
+        mavenBom("org.testcontainers:testcontainers-bom:1.21.4")
+    }
+    dependencies {
+        dependency("org.testcontainers:testcontainers:1.21.4")
+        dependency("org.testcontainers:junit-jupiter:1.21.4")
+        dependency("org.testcontainers:postgresql:1.21.4")
+        dependency("org.testcontainers:neo4j:1.21.4")
+    }
 }

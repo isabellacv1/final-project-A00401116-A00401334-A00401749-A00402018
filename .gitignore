@@ -27,6 +27,9 @@ target/
 .classpath
 .project
 .factorypath
+# Eclipse/VS Code Java output dirs (build artifacts, not source)
+bin/
+**/bin/
 
 # OS
 .DS_Store
@@ -46,3 +49,6 @@ web-build/
 *_data/
 pgdata/
 neo4jdata/
+
+# Runtime upload dirs (file-service stores uploads here)
+services/*/uploads/
