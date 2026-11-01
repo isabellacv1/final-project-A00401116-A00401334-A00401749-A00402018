@@ -1,0 +1,48 @@
+# Gradle
+.gradle/
+build/
+!**/src/**/build/
+**/build/
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Maven
+target/
+**/target/
+
+# IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.classpath
+.project
+.factorypath
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Node/Expo (Handled in mobile/ but good to have here too)
+node_modules/
+.expo/
+dist/
+web-build/
+
+# Docker Local Data
+*_data/
+pgdata/
+neo4jdata/

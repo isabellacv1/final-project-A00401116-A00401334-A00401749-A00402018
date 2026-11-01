@@ -1,0 +1,432 @@
+\documentclass[10pt,letterpaper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish,es-tabla]{babel}
+\usepackage{geometry}
+\geometry{margin=0.68in, top=0.85in, bottom=0.78in, headheight=36pt, headsep=14pt}
+\usepackage{amsmath,amssymb}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{colortbl}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{lastpage}
+\usepackage{setspace}
+\usepackage{listings}
+\usepackage{needspace}
+
+% Tipografía institucional Icesi (Sans-Serif Helvetica)
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\setstretch{1.30}
+\renewcommand{\arraystretch}{1.25}
+
+% Paleta de colores oficial de los programas Icesi
+\definecolor{icesiBlue}{HTML}{5454E9}
+\definecolor{icesiOrange}{HTML}{F0681A}
+\definecolor{icesiGreen}{HTML}{4CB978}
+\definecolor{icesiPurple}{HTML}{865CF0}
+\definecolor{icesiDark}{HTML}{1A1A1A}
+\definecolor{icesiMuted}{HTML}{6B7280}
+\definecolor{icesiBorder}{HTML}{D1D5DB}
+\definecolor{icesiRowLine}{HTML}{E5E7EB}
+\definecolor{icesiLight}{HTML}{F9FAFB}
+\definecolor{codeBackground}{HTML}{F3F4F6}
+
+\lstdefinestyle{bashstyle}{
+    backgroundcolor=\color{codeBackground},
+    commentstyle=\color{icesiMuted}\itshape,
+    keywordstyle=\color{icesiBlue}\bfseries,
+    basicstyle=\ttfamily\scriptsize,
+    breaklines=true,
+    frame=single,
+    rulecolor=\color{icesiBorder},
+    language=bash,
+    literate={á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1 {ñ}{{\~n}}1
+}
+
+% =========================================================================
+% PARÁMETROS DEL DOCUMENTO (editar aquí si cambian fechas o nombres)
+% =========================================================================
+\newcommand{\fechaParteUno}{Domingo 8 de noviembre de 2026, 23:59}
+\newcommand{\fechaParteDos}{Domingo 22 de noviembre de 2026, 23:59}
+
+% =========================================================================
+% ENCABEZADO Y PIE DE PÁGINA
+% =========================================================================
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{%
+  \begin{minipage}[c]{2.8cm}
+    \includegraphics[height=0.58cm]{logo-icesi.png}
+  \end{minipage}%
+  \hspace{0.15cm}%
+  {\color{icesiBorder}\vrule width 0.8pt height 0.60cm}%
+  \hspace{0.2cm}%
+  \begin{minipage}[c]{10.5cm}
+    \fontsize{7.5}{9.5}\selectfont\textbf{\color{icesiDark}UNIVERSIDAD ICESI} \\
+    \fontsize{7}{9}\selectfont\textbf{\color{icesiDark}PROGRAMA DE CURSO / PROYECTO FINAL: INGENIERÍA DE SOFTWARE V} \\
+    \fontsize{6.5}{8.5}\selectfont\color{icesiMuted}Período: 202620 $\bullet$ Grupos 003 y 005
+  \end{minipage}%
+}
+\fancyhead[R]{\fontsize{7.5}{9.5}\selectfont\color{icesiMuted}Pág. \thepage\ de \pageref{LastPage}}
+
+\renewcommand{\headrule}{%
+  \vspace{0.08cm}%
+  \noindent%
+  \textcolor{icesiBlue}{\rule{0.60\textwidth}{1.8pt}}%
+  \textcolor{icesiOrange}{\rule{0.18\textwidth}{1.8pt}}%
+  \textcolor{icesiGreen}{\rule{0.11\textwidth}{1.8pt}}%
+  \textcolor{icesiPurple}{\rule{0.11\textwidth}{1.8pt}}%
+}
+\renewcommand{\footrulewidth}{0.4pt}
+\fancyfoot[L]{\fontsize{7.5}{9.5}\selectfont\color{icesiMuted}Ingeniería de Software V (09776 - TIC) $\bullet$ Proyecto Final CircleGuard: Pipeline DevOps de extremo a extremo}
+\fancyfoot[R]{\fontsize{7.5}{9.5}\selectfont\color{icesiMuted}Universidad Icesi $\bullet$ DCSI}
+
+% =========================================================================
+% COMANDOS DE SECCIÓN
+% =========================================================================
+\newcommand{\sectionBadge}[1]{%
+  \refstepcounter{section}%
+  \vspace{0.24cm}%
+  \noindent%
+  \colorbox{icesiBlue}{\color{white}\rule[-0.08cm]{0pt}{0.42cm}\hspace{0.16cm}\textbf{\normalsize \thesection}\hspace{0.16cm}}%
+  \hspace{0.18cm}%
+  {\fontsize{9.5}{12}\selectfont\textbf{\color{icesiDark}#1}}\\[-0.10cm]%
+  \noindent{\color{icesiDark}\rule{\textwidth}{0.8pt}}\vspace{0.10cm}%
+}
+
+\titleformat{\subsection}
+  {\color{icesiBlue}\normalfont\normalsize\bfseries}
+  {\thesubsection}{0.4em}{}
+\titlespacing*{\subsection}{0pt}{0.8ex plus 0.2ex minus .1ex}{0.3ex plus .1ex}
+
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{Y}{>{\centering\arraybackslash}X}
+
+\setlist[itemize]{leftmargin=*,itemsep=1.5pt,topsep=2pt}
+\setlist[enumerate]{leftmargin=*,itemsep=1.5pt,topsep=2pt}
+
+\begin{document}
+
+% =========================================================================
+% PORTADA / INFORMACIÓN DE LA ACTIVIDAD
+% =========================================================================
+\noindent
+{\fontsize{8.5}{11}\selectfont\textbf{\color{icesiBlue}ENUNCIADO DEL PROYECTO FINAL: PIPELINE DEVOPS DE EXTREMO A EXTREMO PARA CIRCLEGUARD}}\\[0.06cm]
+{\fontsize{15}{18}\selectfont\textbf{Ingeniería de Software V}}\\[0.10cm]
+{\color{icesiRowLine}\hrule height 0.6pt}\vspace{0.10cm}
+
+\noindent
+{\color{icesiBlue}\textbf{\rule{2.5pt}{8.5pt}}}~\textbf{\fontsize{8.5}{11}\selectfont FACULTAD DE INGENIERÍA, DISEÑO Y CIENCIAS APLICADAS} \hfill
+{\color{icesiOrange}\textbf{\rule{2.5pt}{8.5pt}}}~\textbf{\fontsize{8.5}{11}\selectfont DEPARTAMENTO DE COMPUTACIÓN Y SISTEMAS INTELIGENTES}\\[0.06cm]
+{\color{icesiRowLine}\hrule height 0.6pt}\vspace{0.10cm}
+
+\noindent
+{\color{icesiBlue}\textbf{\rule{2.5pt}{8.5pt}}}~\textbf{\fontsize{8.5}{11}\selectfont INFORMACIÓN DE LA ACTIVIDAD} \hfill {\fontsize{7.5}{9}\selectfont\color{icesiMuted}\textbf{IDENTIFICACIÓN}}\\[-0.22cm]
+{\color{icesiBorder}\hrule height 0.5pt}\vspace{0.05cm}
+
+\noindent
+\small
+\begin{tabularx}{\textwidth}{>{\bfseries\color{icesiDark}\fontsize{7.5}{9.5}\selectfont}L{2.5cm}X!{\color{icesiBlue}\vrule width 0.8pt}>{\bfseries\color{icesiDark}\fontsize{7.5}{9.5}\selectfont}L{2.5cm}X}
+CÓDIGO: & 09776 - TIC & PERÍODO: & 202620 (Semestre 2026-2) \\ \hline
+\rowcolor{icesiLight}
+GRUPOS: & Grupo 003\newline Grupo 005 & PROFESORES: & Grupo 003: Alejandro Muñoz Bravo\newline Grupo 005: Juan José Valencia Jaramillo \\ \hline
+PONDERACIÓN: & \textbf{Parte 1: 15.0\%} (reemplaza al Taller 3)\newline \textbf{Parte 2: 25.0\%} (bloque Proyecto Final) & MODALIDAD: & Equipos de 3 estudiantes (ver Sección 3) \\ \hline
+\rowcolor{icesiLight}
+POLÍTICA IAG: & Nivel 3: Colaboración con IAG (con registro de prompts) & ENTREGA: & Parte 1: \fechaParteUno\newline Parte 2: \fechaParteDos \\ \hline
+\end{tabularx}
+
+\vspace{0.12cm}
+
+\subsection*{Resultados de aprendizaje y competencias que se evalúan}
+\noindent\small
+\begin{tabularx}{\textwidth}{|L{1.5cm}|X|L{3.2cm}|L{2.6cm}|}
+\hline
+\rowcolor{icesiLight}
+\textbf{RAA} & \textbf{Resultado de aprendizaje del curso} & \textbf{Competencia (SO)} & \textbf{Dónde se evidencia} \\ \hline
+\textbf{RAA1} & Explicar las fases del ciclo de vida que generan discontinuidad Dev--Ops y los principios DevOps (\textit{shift-left}, \textit{shift-right}). & SO2 Diseño de ingeniería; SO3 Comunicación efectiva & Documentación, patrones, presentación (P1 y P2) \\ \hline
+\textbf{RAA2} & Automatizar desarrollo, pruebas, despliegue y operación mediante pipelines de integración y entrega continua (CI/CD). & SO6 Diseño de experimentos & Pipeline y pruebas (principalmente P1) \\ \hline
+\textbf{RAA3} & Desarrollar pipelines con \textit{shift-left} y \textit{shift-right} que mejoren el diseño arquitectónico y aseguren seguridad, eficiencia, disponibilidad y escalabilidad. & SO9 Despliegue y puesta en funcionamiento & IaC, observabilidad, seguridad (principalmente P2) \\ \hline
+\end{tabularx}
+
+\vspace{0.10cm}
+
+% =========================================================================
+% SECCIÓN 1: CONTEXTO E INTRODUCCIÓN
+% =========================================================================
+\sectionBadge{Contexto e Introducción del Proyecto}
+
+\subsection{El producto: CircleGuard}
+\textbf{CircleGuard} es un sistema universitario de rastreo de contactos y cercos sanitarios que identifica grupos de contacto (\textit{Circles}) y aplica cercos de salud preservando el anonimato individual. Su arquitectura es de microservicios con un modelo de datos híbrido: grafo temporal en \textbf{Neo4j} (ventana de 14 días), bóveda de identidades en \textbf{PostgreSQL}, eventos asíncronos en \textbf{Apache Kafka}, caché en \textbf{Redis} y autenticación dual con \textbf{OpenLDAP}. El repositorio base entregado por el docente es un monorepo \textbf{Gradle} (Java 21, Spring Boot 3.2) con \textbf{8 microservicios} y un cliente \textbf{Expo (React Native)} con salida web en \texttt{mobile/}.
+
+\vspace{0.06cm}
+\noindent\small
+\begin{tabularx}{\textwidth}{|L{3.6cm}|L{1.3cm}|X|}
+\hline
+\rowcolor{icesiLight}
+\textbf{Microservicio} & \textbf{Puerto} & \textbf{Responsabilidad} \\ \hline
+\texttt{auth-service} & 8180 & Autenticación dual LDAP/local y RBAC dinámico. \\ \hline
+\texttt{identity-service} & 8083 & Bóveda criptográfica que anonimiza identidades reales. \\ \hline
+\texttt{promotion-service} & -- & Motor de estados (Sospechoso $\rightarrow$ Probable $\rightarrow$ Confirmado) sobre Neo4j. \\ \hline
+\texttt{notification-service} & 8082 & Despacho multicanal (push, correo, SMS) a partir de eventos Kafka. \\ \hline
+\texttt{form-service} & 8086 & Cuestionarios de salud dinámicos; publica eventos a Kafka. \\ \hline
+\texttt{file-service} & 8085 & Almacenamiento de certificados y documentos (compatible S3). \\ \hline
+\texttt{gateway-service} & 8087 & Validación de ingreso al campus con QR firmados y de vida corta (Redis). \\ \hline
+\texttt{dashboard-service} & 8084 & Analítica geoespacial de focos que preserva la privacidad. \\ \hline
+\end{tabularx}
+
+\subsection{El reto de implementar DevOps}
+Hasta el momento CircleGuard es funcional, pero no implementa \textbf{ninguna} de las prácticas DevOps del curso: no hay \textit{Dockerfiles}, \textit{pipelines}, \textit{Jenkinsfile}, infraestructura declarativa, métricas expuestas (no incluye Spring Boot Actuator ni Micrometer), patrones de resiliencia ni pruebas E2E. Además, \texttt{docker-compose.dev.yml} contiene credenciales en texto plano, válido para desarrollo local pero inaceptable para un entorno compartido. Su equipo asume el rol de la unidad de plataforma de la universidad y debe llevar CircleGuard desde el \textit{commit} de un desarrollador hasta producción de forma automatizada, segura, observable y reproducible, apoyándose en las métricas de éxito del producto.
+\subsection{Estructura en dos entregas}
+\noindent\small
+\begin{tabularx}{\textwidth}{|L{2.6cm}|X|X|}
+\hline
+\rowcolor{icesiLight}
+ & \textbf{Parte 1: \textit{Spin-off}, pipeline CI/CD inicial} & \textbf{Parte 2: incremento, producto final y sustentación} \\ \hline
+\textbf{Principio DevOps} & Automatización, colaboración, integración y entrega continua. & Parte 1 + \textbf{infraestructura como código}, observabilidad y \textit{shift-right}. \\ \hline
+\textbf{Alcance} & Del desarrollo al despliegue, pasando por empaquetamiento y pruebas. Unidades 1 a 5. & Pipeline incrementado, IaC, Kubernetes, patrones de diseño, seguridad, calidad y documentación completa. \\ \hline
+\textbf{Herramientas} & Bash, nube, GitHub, Jenkins, SonarQube, Playwright. & Terraform, Kubernetes, Prometheus, Grafana, Jaeger (más lo anterior). \\ \hline
+\textbf{Peso} & \textbf{15\%} de la nota final & \textbf{25\%} de la nota final \\ \hline
+\end{tabularx}
+
+% =========================================================================
+% SECCIÓN 2: METODOLOGÍA
+% =========================================================================
+\sectionBadge{Metodología de Trabajo}
+
+\subsection{Conformación de equipos}
+El proyecto se desarrolla en \textbf{equipos de 3-4 estudiantes} del mismo grupo (003 o 005). Los equipos se registran antes de iniciar el Sprint 0 y no pueden cambiar de integrantes después de la Parte 1.
+
+\subsection{Marco ágil y ciclo de trabajo}
+Cada equipo adopta \textbf{Scrum} o \textbf{Kanban} (a elección, justificando la decisión) y gestiona su trabajo en \textbf{GitHub Projects} (o Jira/Trello, con acceso para el docente). El trabajo se organiza en tres iteraciones:
+
+\vspace{0.04cm}
+\noindent\small
+\begin{tabularx}{\textwidth}{|L{2.4cm}|L{4.2cm}|X|}
+\hline
+\rowcolor{icesiLight}
+\textbf{Iteración} & \textbf{Periodo} & \textbf{Objetivo y evidencia} \\ \hline
+\textbf{Sprint 0} & Desde la publicación del enunciado & Conformar el equipo, definir el marco ágil y la estrategia de \textit{branching}, \textit{backlog} inicial con historias de usuario y criterios de aceptación, aprovisionar la nube y cargar el código base. \\ \hline
+\textbf{Sprint 1} & Hasta \fechaParteUno & Pipeline CI/CD inicial funcionando de punta a punta. \textit{Sprint review} y retrospectiva documentadas. \textbf{Cierra con la Parte 1.} \\ \hline
+\textbf{Sprint 2} & Hasta \fechaParteDos (se recomienda iniciar la IaC en paralelo durante el Sprint 1) & Incremento: Terraform, Kubernetes, observabilidad, patrones, seguridad y documentación. \textit{Sprint review}, retrospectiva y lecciones aprendidas. \textbf{Cierra con la Parte 2.} \\ \hline
+\end{tabularx}
+
+\subsection{Estrategia de \textit{branching} y control de cambios}
+Se debe documentar y aplicar una estrategia explícita (GitFlow, GitHub Flow o \textit{trunk-based}) con: ramas protegidas (\texttt{main}), \textit{pull requests} con al menos una revisión de otro integrante, \textit{checks} obligatorios del pipeline antes de fusionar y mensajes de \textit{commit} bajo \textbf{Conventional Commits}, que alimentan el versionado semántico automático y las \textit{release notes}.
+
+\begin{lstlisting}[style=bashstyle]
+feat(promotion): agrega cascada de estados con TTL de 14 dias   # incrementa MINOR
+fix(gateway): corrige expiracion de QR firmado                  # incrementa PATCH
+feat(auth)!: reemplaza esquema de roles                         # incrementa MAJOR
+\end{lstlisting}
+
+\subsection{Trazabilidad individual y uso de IAG}
+Las calificaciones son grupales, pero se aplica un \textbf{factor de contribución individual} (entre 0.0 y 1.0) sobre la nota de cada integrante, según la evidencia en GitHub (\textit{commits}, \textit{pull requests}, revisiones), las tarjetas del tablero ágil, y la sustentación. El uso de IAG es de \textbf{Nivel 3 (Colaboración con IAG)}: se permite apoyarse en ella para completar los entregables, pero cada equipo debe declarar el nivel de uso, adjuntar como anexo el \textbf{registro de prompts} (contenido propio entregado a la IAG más los prompts empleados) y estar en capacidad de modificar y explicar todo resultado generado. Una configuración que el equipo no pueda explicar en la sustentación se califica como no evidenciada.
+
+\newpage
+
+% =========================================================================
+% SECCIÓN 3: ENTREGABLES
+% =========================================================================
+\sectionBadge{Entregables}
+
+\subsection{Parte 1: \textit{Spin-off}, implementación inicial del pipeline CI/CD (15\%)}
+El pipeline debe cubrir el ciclo \textbf{desarrollo $\rightarrow$ construcción $\rightarrow$ pruebas $\rightarrow$ empaquetamiento $\rightarrow$ despliegue} sobre los 8 microservicios y el cliente web, aplicando automatización, colaboración, integración y entrega continua.
+
+\vspace{0.04cm}
+\noindent\small
+\begin{tabularx}{\textwidth}{|L{1.0cm}|L{3.3cm}|X|}
+\hline
+\rowcolor{icesiLight}
+\textbf{Cód.} & \textbf{Entregable} & \textbf{Descripción y criterios mínimos} \\ \hline
+\textbf{E1.1} & Gestión ágil y \textit{branching} & Tablero con \textit{backlog}, historias de usuario con criterios de aceptación, Sprint 0 y Sprint 1 documentados (planeación, \textit{review}, retrospectiva) y estrategia de \textit{branching} con ramas protegidas. \\ \hline
+\textbf{E1.2} & Infraestructura en la nube con Bash & Servidores en la nube (p. ej. AWS EC2) para Jenkins, SonarQube y el registro de artefactos (Nexus o equivalente). Entornos \textbf{dev, stage y prod} aislados. Todo el aprovisionamiento mediante \textit{scripts} Bash idempotentes (\texttt{infra/bootstrap-*.sh}) y \textit{Docker Compose}; no se acepta configuración manual no documentada. \\ \hline
+\textbf{E1.3} & Empaquetamiento inmutable & \textit{Dockerfile} \textit{multi-stage} por microservicio y para el cliente web (\texttt{expo export}), usuario no root, imágenes etiquetadas con versión semántica (nunca \texttt{latest}) y publicadas en el registro. Un \texttt{docker-compose} por ambiente con \textit{healthchecks}. \\ \hline
+\textbf{E1.4} & Pipeline Jenkins (CI) & \texttt{Jenkinsfile} \textit{multibranch} activado por \textit{webhook} de GitHub, con \textit{Shared Library} para etapas reutilizables y ejecución por servicio (modificado o todos). Etapas: \textit{checkout}, compilación Gradle, pruebas unitarias con cobertura (JaCoCo), análisis \textbf{SonarQube} con \textit{quality gate} bloqueante, pruebas de integración, empaquetamiento y publicación. \\ \hline
+\textbf{E1.5} & Entrega continua y promoción & Despliegue automático a \textbf{dev}, promoción a \textbf{stage} tras pasar las pruebas E2E y \textbf{aprobación manual} (\texttt{input}) para \textbf{prod}. Versionado semántico automático con \textit{tag} en Git, notificaciones automáticas de fallo (correo, Slack o Discord) y \textit{rollback} básico redesplegando una versión anterior. \\ \hline
+\textbf{E1.6} & Pruebas automatizadas & Pruebas \textbf{unitarias} en cada servicio (meta: $\geq$ 60\% de cobertura de líneas en \texttt{auth}, \texttt{identity}, \texttt{promotion}, \texttt{form} y \texttt{gateway}), al menos \textbf{3 pruebas de integración} entre servicios relacionados (p. ej. \texttt{form} $\rightarrow$ Kafka $\rightarrow$ \texttt{promotion}, con Testcontainers) y \textbf{pruebas E2E con Playwright} sobre el cliente web (mínimo 3 flujos: inicio de sesión, cuestionario de salud y validación de acceso). Informes publicados por el pipeline. \\ \hline
+\textbf{E1.7} & \textit{Change management} y \textit{release notes} & Plantilla de solicitud de cambio, política de aprobación por tipo de cambio, \textit{release notes} generadas automáticamente desde \textit{commits} y \textit{pull requests}, y esquema de etiquetado de \textit{releases}. \\ \hline
+\textbf{E1.8} & Documentación& \texttt{README} operativo, diagrama de arquitectura y del \textit{pipeline}, bitácora de IAG (anexo). \\ \hline
+\end{tabularx}
+
+\vspace{0.08cm}
+\noindent\small\textbf{Alcance de despliegue en la Parte 1.} Para acotar la carga de las máquinas, los servicios \textbf{núcleo} (\texttt{auth}, \texttt{identity}, \texttt{promotion}, \texttt{form}, \texttt{gateway}) con su \textit{middleware} (PostgreSQL, Neo4j, Kafka, Redis, OpenLDAP) y el cliente web deben estar \textbf{desplegados} en los tres ambientes. Los demás (\texttt{notification}, \texttt{file}, \texttt{dashboard}) deben ser \textbf{compilados, probados y empaquetados} por el pipeline y se despliegan en la Parte 2.
+
+\subsection{Parte 2: incremento del proyecto, producto final y presentación (25\%)}
+Se parte del pipeline de la Parte 1 y se incorpora \textbf{infraestructura como código} y las prácticas de \textit{shift-right}. Los 8 microservicios deben quedar desplegados en Kubernetes.
+
+\vspace{0.04cm}
+\noindent\small
+\begin{tabularx}{\textwidth}{|L{1.0cm}|L{3.3cm}|X|}
+\hline
+\rowcolor{icesiLight}
+\textbf{Cód.} & \textbf{Entregable} & \textbf{Descripción y criterios mínimos} \\ \hline
+\textbf{E2.1} & IaC con Terraform & Infraestructura completa declarada con Terraform en \textbf{módulos} reutilizables (red, cómputo/clúster, registro, almacenamiento, observabilidad), \textbf{tres ambientes} (dev, stage, prod) parametrizados, \textit{backend} remoto del estado con bloqueo (p. ej. S3 + DynamoDB) y diagramas de la infraestructura. \\ \hline
+\textbf{E2.2} & Orquestación en Kubernetes & Despliegue de los 8 servicios y el \textit{middleware} con manifiestos, Helm o Kustomize: \textit{namespaces} por ambiente, \textit{ConfigMaps} y \textit{Secrets}, \textit{Ingress}, \textit{HPA} y sondas \textit{liveness}/\textit{readiness} alimentadas por Actuator. Se admite EKS o un clúster ligero (k3s) sobre la nube. \\ \hline
+\textbf{E2.3} & Pipeline incrementado & Jenkins ejecuta \texttt{terraform plan/apply} (con aprobación en prod), construye, escanea con \textbf{Trivy} (imágenes e IaC) con umbral bloqueante, despliega a Kubernetes, promueve entre ambientes con aprobación a producción y notifica fallos. \\ \hline
+\textbf{E2.4} & Patrones de diseño & Identificar y documentar los patrones presentes en la arquitectura (p. ej. \textit{database-per-service}, arquitectura dirigida por eventos, \textit{API Gateway}, \textit{cache-aside}, máquina de estados; verificar en el código). Implementar o mejorar \textbf{al menos tres}: uno de \textbf{resiliencia} (\textit{Circuit Breaker}, \textit{Retry}, \textit{Bulkhead} con Resilience4j), uno de \textbf{configuración} (\textit{External Configuration}, \textit{Feature Toggle}) y uno adicional a elección. Cada uno con propósito, \textit{trade-offs}, evidencia y prueba. \\ \hline
+\textbf{E2.5} & Observabilidad & Métricas con Micrometer y \textbf{Prometheus}; \textbf{Grafana} con \textit{dashboards} por servicio y de negocio (p. ej. tiempo de contención, promociones por minuto, \textit{check-ins}); \textbf{al menos 3 alertas críticas} (Alertmanager); \textbf{trazado distribuido con Jaeger} (OpenTelemetry) a través de \texttt{form} $\rightarrow$ Kafka $\rightarrow$ \texttt{promotion} $\rightarrow$ \texttt{notification}; y gestión centralizada de logs (ELK o alternativa como Loki). \\ \hline
+\textbf{E2.6} & Seguridad & Escaneo continuo de vulnerabilidades (Trivy, dependencias), gestión segura de secretos (sin credenciales en el repositorio), RBAC en Kubernetes y en Jenkins, y \textbf{TLS} en los servicios expuestos. \\ \hline
+\textbf{E2.7} & Pruebas avanzadas & Pruebas de rendimiento y estrés con \textbf{Locust} (escenarios sobre validación de acceso y envío de cuestionarios, con \textit{p95}, \textit{throughput} y tasa de error frente a un objetivo declarado), \textbf{OWASP ZAP} (\textit{baseline scan}) en el pipeline e informe consolidado de cobertura y calidad. \\ \hline
+\textbf{E2.8} & \textit{Change management} avanzado & \textit{Release notes} de cada versión publicada, plan de \textit{rollback} \textbf{ejecutado y evidenciado} en Kubernetes y registro de cambios por ambiente. \\ \hline
+\textbf{E2.9} & Documentación completa & Arquitectura con diagramas, metodología ágil aplicada (\textit{burndown} o flujo acumulado, retrospectivas), patrones, infraestructura como código, análisis de resultados de pruebas, \textbf{costos} de infraestructura (estimación y real), \textbf{manual de operaciones} y \textit{resumen ejecutivo en inglés} (1 página). \\ \hline
+\textbf{E2.10} & Presentación & Sustentación (arquitectura e infraestructura, demostración de CI/CD, aplicación funcionando, \textit{dashboards}, resultados de rendimiento, lecciones aprendidas). \\ \hline
+\end{tabularx}
+
+\vspace{0.08cm}
+\noindent\small\textbf{Bonificaciones (opcionales, solo Parte 2).} Multi-cloud, \textit{service mesh} (Istio/Linkerd con mTLS y \textit{canary}), \textit{chaos engineering} (Chaos Mesh/Litmus) y FinOps (monitoreo de costos, \textit{spot}, \textit{scale-to-zero}). Cada una aporta hasta \textbf{+0.10} sobre la nota de la Parte 2 (escala 0.0 a 5.0), con un tope acumulado de \textbf{+0.25}; la nota máxima sigue siendo 5.0. Se evalúan solo si los entregables obligatorios están completos.
+
+\Needspace{12\baselineskip}
+\subsection{Estructura sugerida del repositorio}
+\begin{lstlisting}[style=bashstyle]
+circleguard/
+|-- services/ ... mobile/                 # codigo base (no se reescribe)
+|-- Jenkinsfile  jenkins/vars/            # pipeline y Shared Library
+|-- infra/bootstrap/                      # P1: scripts Bash (Jenkins, SonarQube, Nexus)
+|-- infra/terraform/{modules,envs/{dev,stage,prod}}   # P2: IaC
+|-- deploy/{compose,k8s}/                 # P1: compose por ambiente / P2: Kubernetes
+|-- tests/{e2e-playwright,performance-locust,security-zap}/
+|-- observability/{prometheus,grafana,alerts}/
+|-- docs/{arquitectura,agil,patrones,operaciones,costos,release-notes}/
+|-- CHANGELOG.md  README.md  IAG_REGISTRO.md
+\end{lstlisting}
+
+% =========================================================================
+% SECCIÓN 4: FECHAS
+% =========================================================================
+\sectionBadge{Fechas de Entrega}
+
+\noindent\small
+\begin{tabularx}{\textwidth}{|L{2.6cm}|L{3.6cm}|X|}
+\hline
+\rowcolor{icesiLight}
+\textbf{Entrega} & \textbf{Fecha} & \textbf{Condiciones} \\ \hline
+\textbf{Parte 1} \newline Semana 14 & \fechaParteUno & Repositorio, tablero ágil, \textit{pipeline} en funcionamiento (accesible al docente), informe PDF con enlaces y evidencias, anexo de IAG, cargados en la plataforma. \\ \hline
+\textbf{Parte 2} \newline Semana 16 & \fechaParteDos &  Se entrega documentación completa, y presentación; luego se realiza la sustentación más preguntas. \\ \hline
+\end{tabularx}
+
+\vspace{0.06cm}
+\noindent\small Los entregables sin evidencia verificable (capturas, ejecuciones en el \textit{pipeline}, repositorio) no se califican en el criterio correspondiente.
+
+\vspace{0.10cm}
+
+
+% =========================================================================
+% SECCIÓN 5: EVALUACIÓN
+% =========================================================================
+\sectionBadge{Evaluación}
+
+\subsection{Distribución del peso entre las dos partes}
+El borrador original asigna 100 puntos a nueve componentes. Esos puntos se escalan al peso real del proyecto (15\% + 25\% = 40\% de la nota final del curso) y se reparten según las herramientas y unidades que corresponden a cada entrega.
+
+\vspace{0.04cm}
+\noindent\small
+\begin{tabularx}{\textwidth}{|X|C{1.9cm}|C{2.3cm}|C{1.9cm}|C{1.9cm}|}
+\hline
+\rowcolor{icesiLight}
+\textbf{Componente} & \textbf{Equivalente en la nota final} & \textbf{Parte 1} & \textbf{Parte 2} \\ \hline
+Metodología ágil y \textit{branching} & 4.0\% & 2.0\% & 2.0\% \\ \hline
+Infraestructura (Bash/nube en P1; Terraform y Kubernetes en P2) & 8.0\% & 2.0\% & 6.0\% \\ \hline
+Patrones de diseño & 4.0\% & -- & 4.0\% \\ \hline
+CI/CD avanzado & 6.0\% & 5.0\% & 1.0\% \\ \hline
+Pruebas completas & 6.0\% & 3.5\% & 2.5\% \\ \hline
+\textit{Change management} y \textit{release notes} & 2.0\% & 1.5\% & 0.5\% \\ \hline
+Observabilidad y monitoreo & 4.0\% & -- & 4.0\% \\ \hline
+Seguridad & 2.0\% & -- & 2.0\% \\ \hline
+Documentación y presentación & 4.0\% & 1.0\% & 3.0\% \\ \hline
+\rowcolor{icesiLight}
+\textbf{TOTAL} & \textbf{40.0\%} & \textbf{15.0\%} & \textbf{25.0\%} \\ \hline
+\end{tabularx}
+
+\vspace{0.06cm}
+\noindent\small\textbf{Cálculo.} Cada criterio se califica de 0.0 a 5.0 y se pondera con su peso. La nota de cada parte (0.0 a 5.0) es la suma de las notas ponderadas dividida entre el peso total de esa parte (15 o 25), y luego se multiplica por el factor de contribución individual. Ejemplo: una nota de 4.0 en la Parte 1 aporta $4.0 \times 0.15 = 0.60$ puntos a la nota final del curso.
+
+\subsection{Rúbrica analítica de la Parte 1 (15\% de la nota final)}
+
+\setlength{\tabcolsep}{3.5pt}
+\fontsize{7.5}{9.5}\selectfont
+\renewcommand{\arraystretch}{1.15}
+\begin{longtable}{|L{2.7cm}|C{0.9cm}|L{4.35cm}|L{4.35cm}|L{4.35cm}|}
+\hline
+\rowcolor{icesiLight}
+\textbf{Criterio (entregable)} & \textbf{Peso} & \textbf{Excelente (4.5 -- 5.0)} & \textbf{Aceptable (3.0 -- 4.4)} & \textbf{Insuficiente (0.0 -- 2.9)} \\ \hline
+\endhead
+\textbf{P1.1 Gestión ágil y \textit{branching} (E1.1)} & \textbf{2.0\%} & Tablero vivo con historias y criterios de aceptación medibles; Sprint 0 y 1 con \textit{review} y retrospectiva; ramas protegidas y PR revisados por pares. & Tablero y estrategia definidos, pero con historias vagas, retrospectiva superficial o PR sin revisión consistente. & Sin tablero verificable, sin estrategia de \textit{branching} o trabajo directo sobre \texttt{main}. \\ \hline
+\textbf{P1.2 Nube y automatización con Bash (E1.2)} & \textbf{2.0\%} & Tres ambientes aislados; \textit{scripts} idempotentes que reconstruyen Jenkins, SonarQube y registro desde cero con un comando. & Ambientes operativos, pero con pasos manuales documentados o \textit{scripts} no idempotentes. & Infraestructura configurada a mano sin \textit{scripts}, o ambientes no accesibles. \\ \hline
+\textbf{P1.3 Empaquetamiento inmutable (E1.3)} & \textbf{2.5\%} & Imágenes \textit{multi-stage}, no root, versionadas y publicadas en el registro para los 8 servicios y el cliente; \textit{compose} con \textit{healthchecks}. & Imágenes funcionales pero pesadas, con \textit{tags} ambiguos o para solo una parte de los servicios. & Sin imágenes reproducibles, uso de \texttt{latest} o artefactos no publicados. \\ \hline
+\textbf{P1.4 Pipeline CI en Jenkins (E1.4)} & \textbf{2.5\%} & \textit{Multibranch} con \textit{webhook}, \textit{Shared Library}, JaCoCo y \textit{quality gate} de SonarQube que bloquea; ejecución selectiva por servicio. & Pipeline funcional con \textit{Jenkinsfile} monolítico, \textit{quality gate} informativo o sin \textit{webhook}. & El pipeline falla, solo compila o no integra análisis estático. \\ \hline
+\textbf{P1.5 Entrega continua y promoción (E1.5)} & \textbf{2.5\%} & Despliegue automático a dev, promoción a stage tras E2E, aprobación manual a prod, semver automático, notificaciones de fallo y \textit{rollback} demostrado. & Despliega en los ambientes, pero con versionado manual, sin aprobación formal o sin notificaciones. & Despliegue manual o ambientes no promovidos por el pipeline. \\ \hline
+\textbf{P1.6 Pruebas automatizadas (E1.6)} & \textbf{3.5\%} & Cobertura $\geq$ 60\% en servicios núcleo, $\geq$ 3 integraciones relevantes y 3 flujos E2E con Playwright, todo ejecutado y reportado por el pipeline. & Pruebas presentes pero con cobertura baja, integraciones triviales o E2E ejecutadas fuera del pipeline. & Pruebas ausentes, no ejecutables o que no se integran al pipeline. \\ \hline
+\textbf{P1.7 \textit{Change management} y \textit{release notes} (E1.7)} & \textbf{1.5\%} & Proceso formal con plantilla y política de aprobación; \textit{release notes} automáticas y etiquetado coherente con semver. & Proceso descrito pero \textit{release notes} manuales o etiquetas inconsistentes. & Sin proceso de cambios ni \textit{release notes}. \\ \hline
+\textbf{P1.8 Documentación, video e IAG (E1.8)} & \textbf{1.0\%} & \texttt{README} que permite reproducir, diagramas claros, y bitácora de IAG completa con reflexión crítica. & Documentación parcial, bitácora de IAG incompleta. & No se puede reproducir, sin registro de IAG. \\ \hline
+\rowcolor{icesiLight}
+\textbf{TOTAL PARTE 1} & \textbf{15.0\%} & \multicolumn{3}{c|}{\textbf{Nota para aprobar $\geq$ 3.0}} \\ \hline
+\end{longtable}
+
+\newpage
+\normalsize
+\subsection{Rúbrica analítica de la Parte 2 (25\% de la nota final)}
+
+\fontsize{7.5}{9.5}\selectfont
+\begin{longtable}{|L{2.7cm}|C{0.9cm}|L{4.35cm}|L{4.35cm}|L{4.35cm}|}
+\hline
+\rowcolor{icesiLight}
+\textbf{Criterio (entregable)} & \textbf{Peso} & \textbf{Excelente (4.5 -- 5.0)} & \textbf{Aceptable (3.0 -- 4.4)} & \textbf{Insuficiente (0.0 -- 2.9)} \\ \hline
+\endhead
+\textbf{P2.1 Metodología ágil, cierre (E2.9)} & \textbf{2.0\%} & Sprint 2 con \textit{review}, retrospectiva y métricas (\textit{burndown}/flujo) que muestran mejoras entre iteraciones. & Iteraciones documentadas sin análisis de mejora. & Sin evidencia de la segunda iteración. \\ \hline
+\textbf{P2.2 Terraform (E2.1)} & \textbf{4.0\%} & Módulos reutilizables, 3 ambientes por variables, \textit{backend} remoto con \textit{lock}, \texttt{plan} limpio y diagramas coherentes con lo desplegado. & Terraform funcional pero monolítico, con ambientes duplicados o sin \textit{lock} del estado. & Infraestructura no declarada, estado local o \texttt{apply} fallido. \\ \hline
+\textbf{P2.3 Kubernetes (E2.2)} & \textbf{2.0\%} & Los 8 servicios y el \textit{middleware} en K8s por ambiente, con \textit{Secrets}, Ingress, HPA y sondas útiles. & Despliegue parcial o sin sondas, HPA o separación de ambientes. & No hay servicios corriendo en el clúster. \\ \hline
+\textbf{P2.4 Patrones de diseño (E2.4)} & \textbf{4.0\%} & Patrones existentes identificados con evidencia en código; $\geq$ 3 nuevos (resiliencia, configuración y otro) implementados, probados (p. ej. falla inyectada) y con \textit{trade-offs} analizados. & Patrones implementados pero sin pruebas de su efecto, o análisis superficial. & Menos de 3 patrones, sin implementación real o solo descriptivos. \\ \hline
+\textbf{P2.5 CI/CD avanzado (E2.3)} & \textbf{1.0\%} & Terraform y K8s dentro del pipeline, Trivy bloqueante, aprobación a prod y notificaciones. & Pipeline despliega a K8s pero sin Trivy bloqueante o con pasos manuales. & El pipeline no gobierna el despliegue en K8s. \\ \hline
+\textbf{P2.6 Pruebas avanzadas (E2.7)} & \textbf{2.5\%} & Locust con escenarios realistas y objetivos declarados, ZAP en el pipeline, informe que interpreta resultados y propone mejoras. & Pruebas ejecutadas sin objetivo claro o sin análisis. & Sin pruebas de rendimiento o seguridad. \\ \hline
+\textbf{P2.7 \textit{Change management} y \textit{rollback} (E2.8)} & \textbf{0.5\%} & \textit{Release notes} por versión y \textit{rollback} ejecutado y evidenciado en K8s. & Plan escrito sin ejecución comprobada. & Sin plan de \textit{rollback}. \\ \hline
+\textbf{P2.8 Observabilidad (E2.5)} & \textbf{4.0\%} & Prometheus, Grafana (técnicos y de negocio), $\geq$ 3 alertas críticas probadas, trazas Jaeger de extremo a extremo y logs centralizados. & Métricas y \textit{dashboards} básicos; sin trazas completas o alertas sin probar. & Sin métricas expuestas o \textit{dashboards} vacíos. \\ \hline
+\textbf{P2.9 Seguridad (E2.6)} & \textbf{2.0\%} & Escaneo continuo, secretos fuera del repositorio, RBAC aplicado y TLS verificable. & Algunas prácticas aplicadas; credenciales aún en archivos o TLS autofirmado sin justificar. & Credenciales expuestas, sin RBAC ni TLS. \\ \hline
+\textbf{P2.10 Documentación completa (E2.9)} & \textbf{2.0\%} & Documentación coherente con lo desplegado: arquitectura, IaC, patrones, resultados, costos, manual de operaciones y resumen en inglés. & Documentación presente pero desactualizada o con costos sin sustento. & Documentación incompleta o inconsistente con la solución. \\ \hline
+\textbf{P2.11 Presentación (E2.10)} & \textbf{1.0\%} & Ver rúbrica de presentación (siguiente tabla). & Ver rúbrica de presentación. & Ver rúbrica de presentación. \\ \hline
+\rowcolor{icesiLight}
+\textbf{TOTAL PARTE 2} & \textbf{25.0\%} & \multicolumn{3}{c|}{\textbf{Nota para aprobar $\geq$ 3.0}} \\ \hline
+\end{longtable}
+\vspace{4cm}
+\normalsize
+\subsection{Rúbrica de la presentación y demostración (criterio P2.11, 1.0\% de la nota final)}
+
+\fontsize{7.5}{9.5}\selectfont
+\begin{longtable}{|L{2.7cm}|C{0.9cm}|L{4.35cm}|L{4.35cm}|L{4.35cm}|}
+\hline
+\rowcolor{icesiLight}
+\textbf{Dimensión} & \textbf{Peso} & \textbf{Excelente (4.5 -- 5.0)} & \textbf{Aceptable (3.0 -- 4.4)} & \textbf{Insuficiente (0.0 -- 2.9)} \\ \hline
+\endhead
+\textbf{Arquitectura e infraestructura} & \textbf{0.20\%} & Explica decisiones, \textit{trade-offs} y diagramas con claridad. & Describe componentes sin justificar decisiones. & Descripción confusa o incorrecta. \\ \hline
+\textbf{Demostración de CI/CD en vivo} & \textbf{0.25\%} & Un cambio recorre el pipeline completo hasta producción con aprobación y notificaciones, sin intervención manual oculta. & Demostración parcial o con pasos manuales. & No se evidencia el pipeline. \\ \hline
+\textbf{Aplicación y \textit{dashboards}} & \textbf{0.25\%} & Aplicación funcionando en K8s; \textit{dashboards}, alertas y trazas interpretados con una falla provocada. & Aplicación y \textit{dashboards} mostrados sin interpretación. & Aplicación o monitoreo no operativos. \\ \hline
+\textbf{Resultados y lecciones aprendidas} & \textbf{0.15\%} & Resultados de rendimiento analizados frente a objetivos; lecciones y recomendaciones concretas. & Resultados reportados sin análisis crítico. & Sin resultados o conclusiones. \\ \hline
+\textbf{Comunicación y dominio individual} & \textbf{0.15\%} & Tiempo respetado (20--30 min), introducción en inglés de 2--3 min y respuestas sólidas de todos los integrantes. & Desbalance entre integrantes o respuestas parciales. & No se respeta el tiempo o no hay dominio individual. \\ \hline
+\rowcolor{icesiLight}
+\textbf{TOTAL PRESENTACIÓN} & \textbf{1.0\%} & \multicolumn{3}{c|}{\textbf{La nota de este criterio (0.0 a 5.0) se promedia con los pesos anteriores}} \\ \hline
+\end{longtable}
+
+\normalsize
+\vspace{0.15cm}
+% =========================================================================
+% INSTRUCCIONES DE ENTREGA
+% =========================================================================
+\noindent
+{\color{icesiBlue}\textbf{\rule{2.5pt}{8.5pt}}}~\textbf{\fontsize{8.5}{11}\selectfont INSTRUCCIONES DE ENTREGA} \\[-0.22cm]
+{\color{icesiBorder}\hrule height 0.5pt}\vspace{0.08cm}
+
+\small
+\begin{enumerate}
+  \item \textbf{Repositorio en GitHub:} privado, en la organización indicada por el docente, con acceso al profesor de su grupo, \textit{pipeline} en verde y \textit{tags} de \textit{release} (\texttt{v1.0.0}, \dots).
+  \item \textbf{Informe en PDF} (uno por parte), con el enlace al repositorio y al tablero ágil, capturas de las ejecuciones del \textit{pipeline}, URL de los ambientes y evidencias de cada entregable.
+  \item \textbf{Anexo de IAG:} nivel de uso declarado y registro de prompts (contenido propio y prompts empleados).
+  \item \textbf{Credenciales y costos:} no se incluyen secretos en el repositorio ni en los PDF. Los equipos deben apagar o destruir los recursos de nube una vez finalizada la evaluación (\texttt{terraform destroy} en Parte 2).
+\end{enumerate}
+
+\end{document}
