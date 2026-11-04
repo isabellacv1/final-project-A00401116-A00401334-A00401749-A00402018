@@ -136,6 +136,39 @@ To run frontend unit and component tests:
 npm run test
 ```
 
+### 4. Web App Docker Image
+The web build of the app is packaged as a static site served by nginx (`mobile/Dockerfile`).
+
+```bash
+# Build (context is the mobile/ folder)
+docker build -t circleguard/web:1.0.0 mobile
+
+# Run: the app is available at http://localhost:8081
+docker run -d --name circleguard-web -p 8081:8080 circleguard/web:1.0.0
+```
+
+Service URLs are supplied **at container start** through environment variables, so the same image works in every environment without rebuilding. Any variable left unset falls back to its `localhost` default.
+
+| Variable | Default |
+|:---|:---|
+| `AUTH_BASE_URL` | `http://localhost:8180` |
+| `IDENTITY_BASE_URL` | `http://localhost:8083` |
+| `FORM_BASE_URL` | `http://localhost:8086` |
+| `GATEWAY_BASE_URL` | `http://localhost:8087` |
+| `PROMOTION_BASE_URL` | `http://localhost:8088` |
+| `DASHBOARD_BASE_URL` | `http://localhost:8084` |
+| `FILE_BASE_URL` | `http://localhost:8085` |
+| `NOTIFICATION_BASE_URL` | `http://localhost:8082` |
+
+```bash
+docker run -d -p 8081:8080 \
+  -e AUTH_BASE_URL=https://auth.example.com \
+  -e GATEWAY_BASE_URL=https://gateway.example.com \
+  circleguard/web:1.0.0
+```
+
+These URLs are called by the **browser**, so they must be reachable from the user's machine (not container-internal hostnames). The values in effect can be checked at `http://localhost:8081/env-config.js`.
+
 ---
 
 ## Testing
