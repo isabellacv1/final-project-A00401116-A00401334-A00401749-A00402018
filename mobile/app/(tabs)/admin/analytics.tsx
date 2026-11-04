@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Building2, ShieldAlert } from 'lucide-react-native';
+import { DASHBOARD_BASE_URL } from '@/constants/Config';
 
 export default function DepartmentAnalyticsScreen() {
   const [department, setDepartment] = useState('Faculty of Engineering, Design and Applied Sciences (Barberi de Ingeniería, Diseño y Ciencias Aplicadas)');
@@ -25,7 +26,7 @@ export default function DepartmentAnalyticsScreen() {
   const fetchDepartmentStats = async (dept: string) => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:8084/api/v1/analytics/department/${dept}`);
+      const response = await fetch(`${DASHBOARD_BASE_URL}/api/v1/analytics/department/${dept}`);
       if (response.ok) {
         const data = await response.json();
         setStats(data);
