@@ -3,9 +3,9 @@ import * as TaskManager from 'expo-task-manager';
 import * as BackgroundFetch from 'expo-background-fetch';
 import * as SecureStore from 'expo-secure-store';
 import { ProximityScanner } from './proximityScanner';
+import { PROMOTION_BASE_URL } from '../constants/Config';
 
 export const PROXIMITY_SYNC_TASK = 'PROXIMITY_SYNC_TASK';
-const PROMOTION_BASE_URL = 'http://localhost:8088'; // Promotion Service
 
 /**
  * Registry for the periodic background encounter sync.

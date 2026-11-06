@@ -1,0 +1,10 @@
+# Build context hygiene for the web image (context: mobile/)
+node_modules
+dist
+web-build
+.expo
+.git
+*.log
+test-output.txt
+Dockerfile
+.dockerignore
