@@ -84,12 +84,58 @@ CircleGuard follows a **Microservice Architecture** built on a **Hybrid Data Mod
 
 ---
 
+## Run Everything with Docker Compose
+
+The whole platform (middleware, the five core services and the web app) can be started with one command. Only Docker (with Compose v2) is required — no Java or Node on the host.
+
+```bash
+docker compose -f docker-compose.dev.yml -f docker-compose.app.yml up -d --build
+```
+
+| File | Contents |
+|:---|:---|
+| `docker-compose.dev.yml` | Middleware: PostgreSQL, Neo4j, Zookeeper, Kafka, Redis, OpenLDAP (with healthchecks), the `circleguard-net` network and the `pgdata` / `neo4jdata` volumes. |
+| `docker-compose.app.yml` | auth, identity, promotion, form, gateway and the web app, built from their Dockerfiles. |
+
+The first build takes a few minutes. Services start in dependency order: each one waits until its databases / broker report healthy. Check progress with:
+```bash
+docker compose -f docker-compose.dev.yml -f docker-compose.app.yml ps
+```
+Everything is ready when all containers show `(healthy)`.
+
+| Component | URL |
+|:---|:---|
+| Web app | http://localhost:8081 |
+| Auth service | http://localhost:8180 |
+| Identity service | http://localhost:8083 |
+| Form service | http://localhost:8086 |
+| Gateway service | http://localhost:8087 |
+| Promotion service | http://localhost:8088 |
+| Neo4j browser | http://localhost:7474 |
+
+Test users (password `password`): `super_admin`, `staff_guard`, `health_user`.
+
+**Networking notes**
+- Inside `circleguard-net` containers reach each other by service name (`postgres`, `kafka`, `identity`, ...). Kafka exposes `kafka:29092` for containers and `localhost:9092` for apps on the host.
+- The web app runs in the browser, so its `*_BASE_URL` variables use the ports published on `localhost`. It must be served on port 8081, the origin allowed by the services' CORS policy.
+
+**Stop / reset**
+```bash
+# Stop and remove containers (data is kept in the volumes)
+docker compose -f docker-compose.dev.yml -f docker-compose.app.yml down
+
+# Also delete the database volumes (fresh start)
+docker compose -f docker-compose.dev.yml -f docker-compose.app.yml down -v
+```
+
+---
+
 ## Local Development
 
 ### 1. Infrastructure
 Ensure Docker is installed, then start the middleware stack:
 ```bash
-docker-compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev.yml up -d
 ```
 *Middleware includes: PostgreSQL, Neo4j, Kafka, Zookeeper, Redis, and OpenLDAP.*
 
