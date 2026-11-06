@@ -18,6 +18,10 @@ spring:
     username: cn=admin,dc=circleguard,dc=edu
     password: admin
 
+identity:
+  api:
+    url: ${IDENTITY_API_URL:http://localhost:8083}
+
 jwt:
   secret: "my-super-secret-dev-key-32-chars-long-12345678"
   expiration: 3600000
