@@ -1,0 +1,69 @@
+
+services:
+  jenkins:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        DOCKER_GID: ${DOCKER_GID}
+
+    image: circleguard-jenkins:1.0.0
+    container_name: jenkins
+    restart: unless-stopped
+
+    ports:
+      - "${JENKINS_PORT:-8080}:8080"
+      - "${JENKINS_AGENT_PORT:-50000}:50000"
+
+    environment:
+      JAVA_OPTS: "-Duser.timezone=America/Bogota"
+
+    group_add:
+      - "${DOCKER_GID}"
+
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+
+    networks:
+      - cicd_network
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/login >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  smee:
+    build:
+      context: ./smee
+      dockerfile: Dockerfile
+
+    image: circleguard-smee:1.0.0
+    container_name: smee-client
+    restart: unless-stopped
+
+    depends_on:
+      jenkins:
+        condition: service_healthy
+
+    environment:
+      SMEE_URL: ${SMEE_URL}
+      SMEE_TARGET: ${SMEE_TARGET}
+    command:
+      - "-u"
+      - "${SMEE_URL}"
+      - "-t"
+      - ${SMEE_TARGET}
+
+    networks:
+      - cicd_network
+
+volumes:
+  jenkins_home:
+    name: circleguard-jenkins-home
+
+networks:
+  cicd_network:
+    name: circleguard-cicd-network
