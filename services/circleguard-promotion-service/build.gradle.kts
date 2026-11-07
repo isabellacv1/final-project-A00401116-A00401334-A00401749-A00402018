@@ -6,6 +6,12 @@ plugins {
     kotlin("plugin.jpa")
 }
 
+sourceSets {
+    test {
+        java.srcDir("../circleguard-form-service/src/main/java")
+    }
+}
+
 dependencies {
     implementation(platform("org.springframework.boot:spring-boot-dependencies:3.2.4"))
     testImplementation(platform("org.springframework.boot:spring-boot-dependencies:3.2.4"))
