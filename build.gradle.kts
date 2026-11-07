@@ -15,6 +15,14 @@ allprojects {
     }
 }
 
+val coverageGatedServices = setOf(
+    ":services:circleguard-auth-service",
+    ":services:circleguard-identity-service",
+    ":services:circleguard-promotion-service",
+    ":services:circleguard-form-service",
+    ":services:circleguard-gateway-service"
+)
+
 subprojects {
     apply(plugin = "java")
     apply(plugin = "org.jetbrains.kotlin.jvm")
@@ -53,6 +61,27 @@ subprojects {
         reports {
             xml.required.set(true)
             html.required.set(true)
+        }
+    }
+
+    if (path in coverageGatedServices) {
+        tasks.named<org.gradle.testing.jacoco.tasks.JacocoCoverageVerification>(
+            "jacocoTestCoverageVerification"
+        ) {
+            dependsOn("test")
+            violationRules {
+                rule {
+                    limit {
+                        counter = "LINE"
+                        value = "COVEREDRATIO"
+                        minimum = "0.60".toBigDecimal()
+                    }
+                }
+            }
+        }
+
+        tasks.named("check") {
+            dependsOn("jacocoTestCoverageVerification")
         }
     }
 }
