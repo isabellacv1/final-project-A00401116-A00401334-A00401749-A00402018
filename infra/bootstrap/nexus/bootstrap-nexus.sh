@@ -1,4 +1,3 @@
-
 #!/usr/bin/env bash
 
 # Despliega Nexus Repository mediante Docker Compose.
