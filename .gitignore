@@ -53,3 +53,4 @@ neo4jdata/
 
 # Runtime upload dirs (file-service stores uploads here)
 services/*/uploads/
+scripts/infrastructure.env
