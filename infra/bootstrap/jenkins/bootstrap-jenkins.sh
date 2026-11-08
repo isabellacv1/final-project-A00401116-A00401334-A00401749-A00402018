@@ -112,6 +112,6 @@ else
 fi
 
 echo
-log "Interfaz: http://<IP-PRIVADA-CG-DEVOPS>:${JENKINS_PORT:-8080}"
+log "Interfaz: http://100.31.132.57:${JENKINS_PORT:-8080}"
 log "Logs Jenkins: docker logs -f jenkins"
 log "Logs Smee: docker logs -f smee-client"
