@@ -53,4 +53,7 @@ neo4jdata/
 
 # Runtime upload dirs (file-service stores uploads here)
 services/*/uploads/
+
+# Local environment files with credentials (never commit)
 scripts/infrastructure.env
+infra/config-as-code/.env
