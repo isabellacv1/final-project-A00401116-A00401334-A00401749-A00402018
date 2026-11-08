@@ -81,6 +81,7 @@ export default function LoginScreen() {
               <User size={20} color="#71717a" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
+                testID="login-username"
                 placeholder="Username"
                 placeholderTextColor="#3f3f46"
                 value={username}
@@ -94,6 +95,7 @@ export default function LoginScreen() {
               <Lock size={20} color="#71717a" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
+                testID="login-password"
                 placeholder="Password"
                 placeholderTextColor="#3f3f46"
                 value={password}
@@ -106,6 +108,7 @@ export default function LoginScreen() {
               style={[styles.loginButton, loading && styles.buttonDisabled]}
               onPress={handleLogin}
               disabled={loading}
+              testID="login-submit-button"
             >
               {loading ? (
                 <ActivityIndicator color="#ffffff" />
