@@ -13,6 +13,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
+import java.time.Duration;
 import org.testcontainers.containers.Neo4jContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -28,11 +29,13 @@ public class AdministrativeCorrectionTest {
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
             .withDatabaseName("circleguard_promotion")
             .withUsername("admin")
-            .withPassword("password");
+            .withPassword("password")
+            .withStartupTimeout(Duration.ofMinutes(5));
 
     @Container
     static Neo4jContainer<?> neo4j = new Neo4jContainer<>("neo4j:5.12.0")
-            .withAdminPassword("password");
+            .withAdminPassword("password")
+            .withStartupTimeout(Duration.ofMinutes(5));
 
     @Container
     static GenericContainer<?> redis = new GenericContainer<>("redis:7.2.1")

@@ -9,6 +9,7 @@ import org.springframework.data.neo4j.core.Neo4jClient;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import java.time.Duration;
 import org.testcontainers.containers.Neo4jContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -25,11 +26,13 @@ public class HealthStatusReevaluationTest {
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
             .withDatabaseName("circleguard_promotion")
             .withUsername("admin")
-            .withPassword("password");
+            .withPassword("password")
+            .withStartupTimeout(Duration.ofMinutes(5));
 
     @Container
     static Neo4jContainer<?> neo4jContainer = new Neo4jContainer<>("neo4j:5.12")
-            .withAdminPassword("password");
+            .withAdminPassword("password")
+            .withStartupTimeout(Duration.ofMinutes(5));
 
     @DynamicPropertySource
     static void neo4jProperties(DynamicPropertyRegistry registry) {
