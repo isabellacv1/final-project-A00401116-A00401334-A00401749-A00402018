@@ -54,9 +54,37 @@ subprojects {
 
     tasks.withType<Test> {
         useJUnitPlatform()
+    }
+
+    tasks.named<Test>("test") {
+        exclude("**/*IT.class")
         finalizedBy("jacocoTestReport")
     }
 
+    if (path != ":services") {
+        tasks.register<Test>("integrationTest") {
+            description = "Runs integration tests tagged with 'integration'."
+            group = "verification"
+
+            val testSourceSet = project.extensions
+                .getByType<SourceSetContainer>()
+                .getByName("test")
+
+            testClassesDirs = testSourceSet.output.classesDirs
+            classpath = testSourceSet.runtimeClasspath
+
+            useJUnitPlatform {
+                includeTags("integration")
+            }
+
+            filter {
+                isFailOnNoMatchingTests = false
+            }
+
+            dependsOn(tasks.named("testClasses"))
+            shouldRunAfter(tasks.named("test"))
+        }
+    }
     tasks.withType<JacocoReport> {
         reports {
             xml.required.set(true)
