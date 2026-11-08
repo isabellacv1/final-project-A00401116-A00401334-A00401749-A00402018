@@ -50,12 +50,21 @@ pipeline {
                 sh './gradlew test --continue --console=plain'
             }
         }
+
+        stage('Integration tests') {
+            options {
+                timeout(time: 30, unit: 'MINUTES')
+            }
+            steps {
+                sh './gradlew integrationTest --continue --console=plain'
+            }
+        }
     }
 
     post {
         always {
             junit allowEmptyResults: true,
-                  testResults: 'services/*/build/test-results/test/*.xml'
+                  testResults: 'services/*/build/test-results/test/*.xml, services/*/build/test-results/integrationTest/*.xml'
             archiveArtifacts allowEmptyArchive: true,
                              artifacts: 'services/*/build/reports/tests/**, services/*/build/reports/jacoco/**'
         }
