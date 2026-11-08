@@ -5,7 +5,33 @@ Jenkins runs the CI pipeline of CircleGuard.
 - **Server:** provisioned with [`infra/bootstrap/jenkins`](../../infra/bootstrap/jenkins) (HU-05).
 - **Global configuration and credentials:** [`infra/config-as-code/jenkins`](../../infra/config-as-code/jenkins).
 - **CI job:** multibranch job `circleguard`, defined in [`infra/jenkins/jobs/circleguard.xml`](../../infra/jenkins/jobs/circleguard.xml).
-- **Pipeline:** [`Jenkinsfile`](../../Jenkinsfile) at the root of the repository (HU-11).
+- **Pipeline:** shared library [`circleguard-jenkins-library`](https://github.com/isabellacv1/circleguard-jenkins-library),
+  registered in Jenkins as `circleguard-pipeline-library`. The [`Jenkinsfile`](../../Jenkinsfile) at the root
+  of the repository only loads the library and passes the parameters (HU-11).
+
+## Shared library
+
+| Setting | Value |
+|---------|-------|
+| Name in Jenkins | `circleguard-pipeline-library` |
+| Repository | `https://github.com/isabellacv1/circleguard-jenkins-library.git` (public, no credentials needed) |
+| Default version | `main` (can be overridden with `@Library('circleguard-pipeline-library@<branch>')`) |
+| Where | **Manage Jenkins → System → Global Trusted Pipeline Libraries** |
+
+`Jenkinsfile`:
+
+```groovy
+@Library('circleguard-pipeline-library@main') _
+
+circleguardPipeline(
+    integrationTests: true,
+    sonar: false
+)
+```
+
+The available parameters and steps are documented in the library README. To keep the registration when
+Jenkins is rebuilt, add the `globalLibraries` block from that README to
+`infra/config-as-code/jenkins/jenkins.yaml`.
 
 ## Access
 
@@ -61,6 +87,7 @@ smee.io channel ──► smee-client container ──► Jenkins /github-webhoo
 | Build | `./gradlew assemble` | 30 min |
 | Tests | `./gradlew test --continue` | 45 min |
 | Integration tests | `./gradlew integrationTest --continue` | 30 min |
+| SonarQube | analysis + quality gate | off (`sonar: false`) |
 
 After every run, even if a stage fails, Jenkins publishes the JUnit results and archives the test and
 JaCoCo reports. Performance benchmarks are not part of the pipeline; run them with
@@ -70,8 +97,8 @@ JaCoCo reports. Performance benchmarks are not part of the pipeline; run them wi
 
 Jenkins runs in a container and uses the host Docker daemon through `/var/run/docker.sock`, so the
 containers started by Testcontainers are siblings of Jenkins, not children. They are only reachable
-through the gateway of the host `bridge` network. The pipeline sets `TESTCONTAINERS_HOST_OVERRIDE`
-to that gateway before running the tests.
+through the gateway of the host `bridge` network. The library step `configureTestcontainers()` sets
+`TESTCONTAINERS_HOST_OVERRIDE` to that gateway before running the tests.
 
 ### Resources
 
@@ -106,5 +133,5 @@ curl -s -b cookies -u <user>:<token> -H "$CRUMB" -H "Content-Type: application/x
   -X POST --data-binary @infra/jenkins/jobs/circleguard.xml "$JENKINS_URL/createItem?name=circleguard"
 ```
 
-The credential `git-credential` must exist in Jenkins before running the job. Then click
-**Scan Repository Now** in the job.
+The credential `git-credential` and the shared library `circleguard-pipeline-library` must exist in
+Jenkins before running the job. Then click **Scan Repository Now** in the job.
