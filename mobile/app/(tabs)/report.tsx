@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform, useWindowDimensions } from 'react-native';
 import { MeshBackground } from '@/components/MeshBackground';
 import { Thermometer, Wind, Activity, CheckCircle2, ChevronLeft, ArrowRight } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
@@ -54,7 +54,12 @@ export default function SymptomReportScreen() {
         throw new Error('Submission failed');
       }
     } catch (error) {
-      Alert.alert('Submission Failed', 'Could not reach the health gateway. Please try again.');
+      const errorMessage = 'Could not reach the health gateway. Please try again.';
+      if (Platform.OS === 'web') {
+        alert(`Submission Failed: ${errorMessage}`);
+      } else {
+        Alert.alert('Submission Failed', errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -106,10 +111,11 @@ export default function SymptomReportScreen() {
       <ScrollView contentContainerStyle={[styles.scrollContent, isDesktop && { paddingHorizontal: width * 0.15 }]}>
         <Text style={styles.prompt}>Select all that apply to you currently:</Text>
 
-        <View style={isDesktop ? styles.symptomGrid : styles.symptomList}>
+        <View style={isDesktop ? styles.symptomGrid : styles.symptomList} testID="report-symptom-cards">
           <TouchableOpacity 
             style={[styles.symptomCard, symptoms.hasFever && styles.symptomCardActive, isDesktop && styles.symptomCardDesktop]} 
             onPress={() => toggleSymptom('hasFever')}
+            testID="report-symptom-fever"
           >
             <Thermometer color={symptoms.hasFever ? '#f4f4f5' : '#0891B2'} size={32} />
             <View style={styles.symptomTextContainer}>
@@ -121,6 +127,7 @@ export default function SymptomReportScreen() {
           <TouchableOpacity 
             style={[styles.symptomCard, symptoms.hasCough && styles.symptomCardActive, isDesktop && styles.symptomCardDesktop]} 
             onPress={() => toggleSymptom('hasCough')}
+            testID="report-symptom-cough"
           >
             <Activity color={symptoms.hasCough ? '#f4f4f5' : '#0891B2'} size={32} />
             <View style={styles.symptomTextContainer}>
@@ -132,6 +139,7 @@ export default function SymptomReportScreen() {
           <TouchableOpacity 
             style={[styles.symptomCard, symptoms.hasShortnessOfBreath && styles.symptomCardActive, isDesktop && styles.symptomCardDesktop]} 
             onPress={() => toggleSymptom('hasShortnessOfBreath')}
+            testID="report-symptom-shortness-of-breath"
           >
             <Wind color={symptoms.hasShortnessOfBreath ? '#f4f4f5' : '#0891B2'} size={32} />
             <View style={styles.symptomTextContainer}>
@@ -154,6 +162,7 @@ export default function SymptomReportScreen() {
           style={[styles.primaryButton, loading && { opacity: 0.5 }, isDesktop && { width: 300, alignSelf: 'flex-end' }]} 
           onPress={handleSubmit}
           disabled={loading}
+          testID="report-confirm-button"
         >
           <Text style={styles.buttonText}>{loading ? 'SUBMITTING...' : 'CONFIRM REPORT'}</Text>
           <ArrowRight color="#ffffff" size={20} />

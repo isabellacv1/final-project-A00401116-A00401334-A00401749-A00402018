@@ -24,7 +24,7 @@ export default function HomeScreen() {
         <Text style={styles.statusValue}>ACTIVE</Text>
       </View>
 
-      <View style={styles.qrContainer}>
+      <View style={styles.qrContainer} testID="home-qr-container">
         <View style={styles.qrInner}>
           {token ? (
             <QRCode
