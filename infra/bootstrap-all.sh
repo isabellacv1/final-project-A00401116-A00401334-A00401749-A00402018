@@ -86,7 +86,7 @@ run_remote "${CI_SONARQUBE_HOST}" "echo 'sonarqube OK: '\$(hostname)" >/dev/null
 info "cg-devops=${CI_DEVOPS_HOST}  cg-sonarqube=${CI_SONARQUBE_HOST}"
 
 # 1. Docker en cg-devops -------------------------------------------------------
-log "1/5 Docker en cg-devops"
+log "1/6 Docker en cg-devops"
 if run_remote "${CI_DEVOPS_HOST}" "command -v docker >/dev/null && docker compose version >/dev/null"; then
     info "Docker ya instalado (idempotente)"
 else
@@ -98,7 +98,7 @@ fi
 
 # 2. Sincronizar archivos (opcional) -------------------------------------------
 if [[ "${SYNC}" == "true" ]]; then
-    log "2/5 Sincronizando compose del repositorio"
+    log "2/6 Sincronizando compose del repositorio"
     for svc in jenkins nexus sonarqube; do
         target_host="${CI_DEVOPS_HOST}"; [[ "${svc}" == "sonarqube" ]] && target_host="${CI_SONARQUBE_HOST}"
         if [[ "${DRY_RUN}" == "true" ]]; then echo "    [DRY] scp infra/bootstrap/${svc} -> ${target_host}:~/${svc}"; else
@@ -123,23 +123,56 @@ if [[ "${SYNC}" == "true" ]]; then
             fi'
     fi
 else
-    log "2/5 Sincronización omitida (use --sync para copiar los compose del repo)"
+    log "2/6 Sincronización omitida (use --sync para copiar los compose del repo)"
 fi
 
 # 3. Levantar servicios --------------------------------------------------------
-log "3/5 Levantando Jenkins + Nexus en cg-devops"
+log "3/6 Levantando Jenkins + Nexus en cg-devops"
 build_flag=""; [[ "${REBUILD}" == "true" ]] && build_flag="--build"
 compose_up "${CI_DEVOPS_HOST}" "~/jenkins" "${build_flag}"
 compose_up "${CI_DEVOPS_HOST}" "~/nexus"   ""
 
-log "4/5 Levantando SonarQube en cg-sonarqube"
+log "4/6 Levantando SonarQube en cg-sonarqube"
 compose_up "${CI_SONARQUBE_HOST}" "~/sonarqube" ""
 
-# 4. Esperar salud -------------------------------------------------------------
-log "5/5 Esperando servicios"
+# 5. Esperar salud -------------------------------------------------------------
+log "5/6 Esperando servicios"
 wait_http "${CI_DEVOPS_HOST}" "http://localhost:8080/login" 40 "Jenkins"
 wait_http "${CI_DEVOPS_HOST}" "http://localhost:8081/"      60 "Nexus"
 wait_http "${CI_SONARQUBE_HOST}" "http://localhost:9092/api/system/status" 60 "SonarQube"
+
+# 6. Credenciales iniciales ----------------------------------------------------
+# En una instalación nueva cada herramienta nace con una contraseña temporal:
+# se imprime aquí para que no haya que buscarla a mano.  Cuando la herramienta
+# ya fue configurada, el archivo deja de existir y se avisa igual.
+log "6/6 Credenciales iniciales"
+if [[ "${DRY_RUN}" == "true" ]]; then
+    echo "    [DRY] imprimiría las contraseñas iniciales de Jenkins y Nexus"
+else
+    PW_JENKINS=$(run_remote "${CI_DEVOPS_HOST}" 'docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword 2>/dev/null || true' | tr -d '\r\n')
+    PW_NEXUS=$(run_remote "${CI_DEVOPS_HOST}" 'docker exec nexus cat /nexus-data/admin.password 2>/dev/null || true' | tr -d '\r\n')
+
+    if [[ -n "${PW_JENKINS}" ]]; then
+        echo "    Jenkins    : ${JENKINS_URL:-http://${CI_DEVOPS_HOST}:8080}   usuario: admin"
+        echo "                 contraseña temporal: ${PW_JENKINS}"
+        echo "                 (va al wizard: Create First Admin User)"
+    else
+        echo "    Jenkins    : wizard ya completado (no hay contraseña temporal)"
+    fi
+
+    if [[ -n "${PW_NEXUS}" ]]; then
+        echo "    Nexus      : ${NEXUS_URL:-http://${CI_DEVOPS_HOST}:8081}   usuario: admin"
+        echo "                 contraseña inicial: ${PW_NEXUS}"
+        echo "                 (Setup wizard -> Change password)"
+    else
+        echo "    Nexus      : wizard ya completado (no hay contraseña inicial)"
+    fi
+
+    echo "    SonarQube  : ${SONARQUBE_URL:-http://${CI_SONARQUBE_HOST}:9092}   usuario: admin"
+    echo "                 contraseña: admin  <- ¡cámbiala en el primer login!"
+    echo
+    echo "    Guarde cada contraseña en infra/config-as-code/.env antes de continuar."
+fi
 
 # 5. Aplicar configuración como código ----------------------------------------
 log "Aplicando configuración de SonarQube (idempotente)"
