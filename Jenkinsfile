@@ -4,7 +4,7 @@ pipeline {
     options {
         skipDefaultCheckout()
         timestamps()
-        timeout(time: 60, unit: 'MINUTES')
+        timeout(time: 90, unit: 'MINUTES')
         buildDiscarder(logRotator(numToKeepStr: '20', artifactNumToKeepStr: '10'))
         disableConcurrentBuilds(abortPrevious: true)
     }
@@ -22,6 +22,9 @@ pipeline {
         }
 
         stage('Build') {
+            options {
+                timeout(time: 30, unit: 'MINUTES')
+            }
             steps {
                 sh 'chmod +x gradlew'
                 sh './gradlew assemble --console=plain'
@@ -29,7 +32,20 @@ pipeline {
         }
 
         stage('Tests') {
+            options {
+                timeout(time: 45, unit: 'MINUTES')
+            }
             steps {
+                script {
+                    // Jenkins runs in its own container and starts the Testcontainers containers
+                    // on the host Docker daemon. They are only reachable through the gateway of
+                    // the host "bridge" network, so Testcontainers must use that address.
+                    env.TESTCONTAINERS_HOST_OVERRIDE = sh(
+                        script: "docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}'",
+                        returnStdout: true
+                    ).trim()
+                    echo "Testcontainers host: ${env.TESTCONTAINERS_HOST_OVERRIDE}"
+                }
                 // --continue runs the tests of every service even if one of them fails
                 sh './gradlew test --continue --console=plain'
             }
