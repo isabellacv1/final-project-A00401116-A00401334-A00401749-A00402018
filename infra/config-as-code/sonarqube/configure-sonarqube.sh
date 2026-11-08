@@ -34,6 +34,7 @@ log()  { echo "[sonarqube] $*"; }
 ok()   { echo "  [OK]      $*"; }
 skip() { echo "  [EXISTS]  $*"; UNCHANGED=$((UNCHANGED + 1)); }
 make() { echo "  [CREATE]  $*"; CREATED=$((CREATED + 1)); }
+warn() { echo "  [WARN]    $*"; UNCHANGED=$((UNCHANGED + 1)); }
 
 # api <ruta>  -> imprime el body (tolerante a 4xx: sirve para consultar)
 api() {
@@ -62,8 +63,29 @@ run() {
 
 # ------------------------------------------------------------------------------
 log "Autenticando contra ${SONARQUBE_URL}"
-STATUS=$(api "system/status" || true)
-echo "${STATUS}" | grep -q '"status":"UP"' || { echo "[ERROR] SonarQube no responde UP: ${STATUS}"; exit 1; }
+
+# SonarQube tarda varios minutos en la primera puesta en marcha (indexa
+# Elasticsearch): se espera el estado UP antes de tocar cualquier cosa.
+WAIT_UP="${SONARQUBE_WAIT_SECONDS:-180}"
+log "Esperando estado UP (máximo ${WAIT_UP}s)"
+STATUS=""
+for ((i = 1; i <= WAIT_UP; i += 5)); do
+    STATUS=$(api "system/status" || true)
+    if echo "${STATUS}" | grep -q '"status":"UP"'; then
+        log "SonarQube está UP (esperado ${i}s)"
+        break
+    fi
+    if (( i % 30 == 0 )); then
+        echo "    ...estado actual: $(echo "${STATUS}" | grep -o '"status":"[A-Z]*"' || echo 'sin respuesta')"
+    fi
+    sleep 5
+done
+
+if ! echo "${STATUS}" | grep -q '"status":"UP"'; then
+    echo "[ERROR] SonarQube no llegó a UP en ${WAIT_UP}s. Última respuesta: ${STATUS}" >&2
+    echo "        Nada fue modificado. Revise los logs y vuelva a ejecutar este script." >&2
+    exit 1
+fi
 
 # 1. Quality gate -------------------------------------------------------------
 log "Quality gate: ${SONARQUBE_QUALITY_GATE}"
@@ -74,9 +96,17 @@ else
     run "post 'qualitygates/create?name=${SONARQUBE_QUALITY_GATE}'"
 fi
 
-# 2. Condiciones (solo si la gate está vacía) ---------------------------------
+# 2. Condiciones (solo si la gate quedó sin condiciones) ----------------------
 CONDITIONS=$(api "qualitygates/show?name=${SONARQUBE_QUALITY_GATE}" 2>/dev/null || echo '{}')
-if echo "${CONDITIONS}" | grep -q '"conditions":\[.\]'; then
+COND_COUNT=$(python3 -c "
+import json,sys
+try: print(len(json.load(sys.stdin).get('conditions',[])))
+except Exception: print(0)
+" <<< "${CONDITIONS}" 2>/dev/null || echo 0)
+
+if [[ "${COND_COUNT}" -gt 0 ]]; then
+    skip "condiciones ya definidas (${COND_COUNT})"
+else
     make "condiciones de la quality gate"
     for cond in \
         "new_coverage|LT|60" \
@@ -87,17 +117,27 @@ if echo "${CONDITIONS}" | grep -q '"conditions":\[.\]'; then
         run "post 'qualitygates/create_condition?gateName=${SONARQUBE_QUALITY_GATE}&metric=${metric}&op=${op}&error=${error}'"
         echo "            - ${metric} ${op} ${error}"
     done
-else
-    skip "condiciones ya definidas ($(echo "${CONDITIONS}" | python3 -c 'import json,sys;print(len(json.load(sys.stdin).get("conditions",[])))' 2>/dev/null || echo '?'))"
 fi
 
 # 3. Proyecto asociado a la gate ---------------------------------------------
-ASSOC=$(api "qualitygates/get_by_project?project=${SONARQUBE_PROJECT_KEY}" 2>/dev/null || echo '{}')
-if echo "${ASSOC}" | grep -q "\"name\":\"${SONARQUBE_QUALITY_GATE}\""; then
-    skip "proyecto '${SONARQUBE_PROJECT_KEY}' asociado a '${SONARQUBE_QUALITY_GATE}'"
+# En una instancia nueva todavía no existe el proyecto: se crea con el primer
+# análisis, así que esto no debe abortar el script.
+PROJ_TOTAL=$(api "projects/search?projects=${SONARQUBE_PROJECT_KEY}" 2>/dev/null | python3 -c "
+import json,sys
+try: print(json.load(sys.stdin).get('paging',{}).get('total',0))
+except Exception: print(0)
+" 2>/dev/null || echo 0)
+
+if [[ "${PROJ_TOTAL}" == "0" ]]; then
+    warn "el proyecto '${SONARQUBE_PROJECT_KEY}' no existe aún (se asociará tras el primer análisis)"
 else
-    make "asociar '${SONARQUBE_PROJECT_KEY}' a '${SONARQUBE_QUALITY_GATE}'"
-    run "post 'qualitygates/select?gateName=${SONARQUBE_QUALITY_GATE}&projectKey=${SONARQUBE_PROJECT_KEY}'"
+    ASSOC=$(api "qualitygates/get_by_project?project=${SONARQUBE_PROJECT_KEY}" 2>/dev/null || echo '{}')
+    if echo "${ASSOC}" | grep -q "\"name\":\"${SONARQUBE_QUALITY_GATE}\""; then
+        skip "proyecto '${SONARQUBE_PROJECT_KEY}' asociado a '${SONARQUBE_QUALITY_GATE}'"
+    else
+        make "asociar '${SONARQUBE_PROJECT_KEY}' a '${SONARQUBE_QUALITY_GATE}'"
+        run "post 'qualitygates/select?gateName=${SONARQUBE_QUALITY_GATE}&projectKey=${SONARQUBE_PROJECT_KEY}'"
+    fi
 fi
 
 # 4. Webhook hacia Jenkins ----------------------------------------------------
