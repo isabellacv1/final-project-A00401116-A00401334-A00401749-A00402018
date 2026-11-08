@@ -1,0 +1,318 @@
+# ==============================================================================
+# Jenkins como código (JCasC) - EXPORTADO AUTOMÁTICAMENTE desde la instancia
+#   ./infra/config-as-code/jenkins/export-jenkins.sh
+# Los secretos se referencian con ${ENV:...}: definirlos en el contenedor de
+# Jenkins (ver infra/bootstrap/jenkins/docker-compose.yml) antes de aplicar.
+# ==============================================================================
+configuration-as-code:
+  deprecated: "reject"
+  restricted: "reject"
+  unknown: "reject"
+  version: "1"
+credentials:
+  blueOcean: {
+    }
+  folder: {
+    }
+  providerImpl: {
+    }
+  system:
+    domainCredentials:
+    - credentials:
+      - usernamePassword:
+          id: "git-credential"
+          password: "${ENV:GIT_PASSWORD}"
+          scope: GLOBAL
+          username: "Santiago2026"
+      - usernamePassword:
+          id: "nexus-credential"
+          password: "${ENV:NEXUS_PUBLISHER_PASSWORD}"
+          scope: GLOBAL
+          username: "ci-publisher"
+      - basicSSHUserPrivateKey:
+          id: "ssh-deploy-dev"
+          privateKeySource:
+            directEntry:
+              privateKey: "${ENV:SSH_DEPLOY_DEV_KEY}"
+          scope: GLOBAL
+          username: "ubuntu"
+      - basicSSHUserPrivateKey:
+          id: "ssh-deploy-stage"
+          privateKeySource:
+            directEntry:
+              privateKey: "${ENV:SSH_DEPLOY_STAGE_KEY}"
+          scope: GLOBAL
+          username: "ubuntu"
+      - basicSSHUserPrivateKey:
+          id: "ssh-deploy-prod"
+          privateKeySource:
+            directEntry:
+              privateKey: "${ENV:SSH_DEPLOY_PROD_KEY}"
+          scope: GLOBAL
+          username: "ubuntu"
+      - string:
+          id: "sonarqube-token"
+          scope: GLOBAL
+          secret: "${ENV:SONARQUBE_TOKEN}"
+      domain: {
+        }
+  user: {
+    }
+jenkins:
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+  crumbIssuer: "standard"
+  disableRememberMe: false
+  labelAtoms:
+  - name: "built-in"
+  log: {
+    }
+  markupFormatter: "plainText"
+  mode: NORMAL
+  nodeMonitors:
+  - "architecture"
+  - "clock"
+  - diskSpace:
+      freeSpaceThreshold: "1GiB"
+      freeSpaceWarningThreshold: "2GiB"
+  - "swapSpace"
+  - tmpSpace:
+      freeSpaceThreshold: "1GiB"
+      freeSpaceWarningThreshold: "2GiB"
+  - "responseTime"
+  numExecutors: 2
+  primaryView:
+    all:
+      name: "all"
+  projectNamingStrategy: "standard"
+  quietPeriod: 5
+  remotingSecurity:
+    enabled: true
+  scmCheckoutRetryCount: 0
+  securityRealm:
+    local:
+      allowsSignup: false
+      enableCaptcha: false
+      passwordComplexityRule: "nonePasswordComplexity"
+      users:
+      - id: "admin"
+        name: "Santiago Grajales Perez"
+        properties:
+        - theme:
+            theme: "noOp"
+        - "consoleUrlProvider"
+        - "viewsTabBar"
+        - "favorite"
+        - myView:
+            viewsTabBar: "standard"
+        - preferredProvider:
+            providerId: "default"
+        - "timezone"
+        - "experimentalFlags"
+        - mailer:
+            emailAddress: "grajalesperezs@gmail.com"
+        - "apiToken"
+  slaveAgentPort: 50000
+  updateCenter:
+    sites:
+    - id: "default"
+      url: "https://updates.jenkins.io/update-center.json"
+  views:
+  - all:
+      name: "all"
+  viewsTabBar: "standard"
+globalCredentialsConfiguration:
+  configuration:
+    providerFilter: "none"
+    typeFilter: "none"
+appearance:
+  consoleUrlProvider: {
+    }
+  pipelineGraphView:
+    showGraphOnBuildPage: false
+    showGraphOnJobPage: false
+    showStageDurations: false
+    showStageNames: false
+  prism:
+    theme: PRISM
+  themeManager:
+    disableUserThemes: false
+    theme: "noOp"
+security:
+  apiToken:
+    creationOfLegacyTokenEnabled: false
+    tokenGenerationOnCreationEnabled: false
+    usageStatisticsEnabled: true
+  apiTokenProperty: {
+    }
+  contentSecurityPolicy:
+    enforce: false
+  cps:
+    hideSandbox: false
+  crumb: {
+    }
+  gitHooks:
+    allowedOnAgents: false
+    allowedOnController: false
+  gitHostKeyVerificationConfiguration:
+    sshHostKeyVerificationStrategy: "knownHostsFileVerificationStrategy"
+  prism:
+    protectSourceCodeByPermission: false
+  queueItemAuthenticator: {
+    }
+  scriptApproval:
+    forceSandbox: false
+  updateSiteWarningsConfiguration: {
+    }
+unclassified:
+  administrativeMonitorsConfiguration: {
+    }
+  artifactManager: {
+    }
+  bitbucketEndpointConfiguration:
+    endpoints:
+    - bitbucketCloudEndpoint:
+        enableCache: false
+        repositoriesCacheDuration: 0
+        teamCacheDuration: 0
+        webhook:
+          cloudWebhook:
+            enableHookSignature: false
+            manageHooks: false
+            webhooksCacheDuration: 180
+  buildDiscarders:
+    configuredBuildDiscarders:
+    - "jobBuildDiscarder"
+  buildStepOperation:
+    enabled: false
+  casCGlobalConfig: {
+    }
+  computerRetentionCheckInterval: {
+    }
+  defaultDisplayUrlProvider: {
+    }
+  defaultFolderConfiguration: {
+    }
+  defaultView: {
+    }
+  email-ext:
+    adminRequiredForTemplateTesting: false
+    allowUnregisteredEnabled: false
+    charset: "UTF-8"
+    debugMode: false
+    defaultAttachBuildLog: 0
+    defaultBody: |-
+      $PROJECT_NAME - Build # $BUILD_NUMBER - $BUILD_STATUS:
+
+      Check console output at $BUILD_URL to view the results.
+    defaultContentType: "text/plain"
+    defaultSubject: "$PROJECT_NAME - Build # $BUILD_NUMBER - $BUILD_STATUS!"
+    defaultTriggerIds:
+    - "hudson.plugins.emailext.plugins.trigger.FailureTrigger"
+    mailAccount: {
+      }
+    maxAttachmentSize: -1
+    maxAttachmentSizeMb: -1
+    precedenceBulk: false
+    throttlingEnabled: false
+    watchingEnabled: false
+  enrichedSummaryConfig:
+    enrichedSummaryEnabled: false
+    globalBuildScanDetection: false
+    httpClientDelayBetweenRetriesInSeconds: 1
+    httpClientMaxRetries: 3
+    httpClientTimeoutInSeconds: 1
+  envVarsFilter: {
+    }
+  fingerprints:
+    fingerprintCleanupDisabled: false
+    storage: "file"
+  gitHubConfiguration:
+    apiRateLimitChecker: ThrottleForNormalize
+  gitHubPluginConfig:
+    hookUrl: "http://98.80.168.139:8080/github-webhook/"
+  globalDefaultFlowDurabilityLevel: {
+    }
+  globalLibraries: {
+    }
+  globalTimeOutConfiguration:
+    operations:
+    - "abortOperation"
+    overwriteable: false
+  globalUntrustedLibraries: {
+    }
+  injectionConfig:
+    allowUntrusted: false
+    checkForBuildAgentErrors: false
+    enabled: false
+    enforceUrl: false
+    gradleCaptureTaskInputFiles: true
+    injectCcudExtension: false
+    injectMavenExtension: false
+    mavenCaptureGoalInputFiles: true
+  junitTestResultStorage:
+    storage: "file"
+  location:
+    adminAddress: "Dirección no configurada todavía <nobody@nowhere>"
+    url: "http://98.80.168.139:8080/"
+  mailer:
+    charset: "UTF-8"
+    useSsl: false
+    useTls: false
+  myView: {
+    }
+  nodeProperties: {
+    }
+  pipeline-model-docker:
+    registry: {
+      }
+  plugin: {
+    }
+  pollSCM:
+    pollingThreadCount: 10
+  projectNamingStrategy: {
+    }
+  proxyConfigurationManager: {
+    }
+  quietPeriod: {
+    }
+  resourceRoot: {
+    }
+  scmGit:
+    addGitTagAction: false
+    allowSecondFetch: false
+    createAccountBasedOnEmail: false
+    disableGitToolChooser: false
+    hideCredentials: false
+    showEntireCommitSummaryInChanges: false
+    useExistingAccountWithSameEmail: false
+  scmRetryCount: {
+    }
+  shell: {
+    }
+  sonarGlobalConfiguration:
+    buildWrapperEnabled: true
+    installations:
+    - credentialsId: "sonarqube-token"
+      name: "CircleGuard-SonarQube"
+      serverUrl: "http://10.20.1.202:9092"
+      triggers:
+        skipScmCause: false
+        skipUpstreamCause: false
+  timestamper:
+    allPipelines: false
+    elapsedTimeFormat: "'<b>'HH:mm:ss.S'</b> '"
+    systemTimeFormat: "'<b>'HH:mm:ss'</b> '"
+  usageStatistics: {
+    }
+  viewsTabBar: {
+    }
+tool:
+  git:
+    installations:
+    - home: "git"
+      name: "Default"
+  mavenGlobalConfig:
+    globalSettingsProvider: "standard"
+    settingsProvider: "standard"
