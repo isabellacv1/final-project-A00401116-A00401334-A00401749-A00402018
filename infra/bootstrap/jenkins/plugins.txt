@@ -1,0 +1,13 @@
+
+git
+workflow-aggregator
+pipeline-stage-view
+credentials-binding
+docker-workflow
+ssh-steps
+timestamper
+ws-cleanup
+github
+pipeline-github-lib
+configuration-as-code
+blueocean
