@@ -41,7 +41,8 @@ warn() { echo "  [WARN]    $*"; WARNED=$((WARNED + 1)); }
 BASE="${NEXUS_URL%/}/service/rest/v1"
 AUTH=(-u "${NEXUS_USER}:${NEXUS_PASSWORD}")
 
-# json_get <ruta> <python-expr sobre 'd'>  -> imprime el resultado de la expr
+# json_get <ruta> <expr-python sobre 'd'>  -> imprime el resultado (sin comas:
+# se usa para tests de pertenencia con grep, por eso se une con espacios)
 json_get() {
     curl -sS --max-time 30 "${AUTH[@]}" "$1" 2>/dev/null | python3 -c "
 import json,sys
@@ -75,7 +76,7 @@ CODE=$(request GET "status")
 
 # 1. Repositorios -------------------------------------------------------------
 log "Repositorios"
-REPOS=$(json_get "${BASE}/repositories" "[r['name'] for r in d]")
+REPOS=$(json_get "${BASE}/repositories" "' '.join(r['name'] for r in d)")
 
 ensure_repo() { # ensure_repo <nombre> <formato> <tipo> <json-cuerpo>
     local name="$1" fmt="$2" type="$3" body="$4"
@@ -88,16 +89,23 @@ ensure_repo() { # ensure_repo <nombre> <formato> <tipo> <json-cuerpo>
 }
 
 ensure_repo "docker-hosted" "docker" "hosted" \
-    '{"name":"docker-hosted","online":true,"storage":{"blobStoreName":"default","strictContentCheck":false},"docker":{"forceCreation":false}}'
+    '{"name":"docker-hosted","online":true,"storage":{"blobStoreName":"default","strictContentTypeValidation":true,"writePolicy":"ALLOW"},"docker":{"v1Enabled":false,"forceBasicAuth":false,"forceCreation":false}}'
 
-# Los demás repositorios que usan los roles no se crean aquí: si faltan, avisan.
-for repo in maven-releases maven-snapshots maven-public raw-releases; do
+ensure_repo "raw-releases" "raw" "hosted" \
+    '{"name":"raw-releases","online":true,"storage":{"blobStoreName":"default","strictContentTypeValidation":true,"writePolicy":"ALLOW"}}'
+
+# Se reconsulta para reflejar lo recién creado antes de validar el resto.
+REPOS=$(json_get "${BASE}/repositories" "' '.join(r['name'] for r in d)")
+
+# Estos no se crean aquí (se asumen parte del setup de Nexus): si faltan, avisan.
+for repo in maven-releases maven-snapshots maven-public; do
     echo " ${REPOS} " | grep -q " ${repo} " || warn "el repositorio '${repo}' no existe (los privilegios del rol quedarían sin efecto)"
 done
 
 # 2. Roles --------------------------------------------------------------------
 log "Roles"
-ROLES=$(json_get "${BASE}/security/roles" "[r['id'] for r in d.get('roles',[])]")
+# /security/roles devuelve un ARRAY (no un objeto con clave "roles")
+ROLES=$(json_get "${BASE}/security/roles" "' '.join(r['id'] for r in (d if isinstance(d,list) else d.get('roles',[])))")
 
 ensure_role() { # ensure_role <id> <privilegios-json>
     local id="$1" privs="$2" body
@@ -133,16 +141,19 @@ ensure_role "role-deploy-reader" "${DEPLOY_READER_PRIVS}"
 
 # 3. Usuarios -----------------------------------------------------------------
 log "Usuarios"
-USERS=$(json_get "${BASE}/security/users" "[u['userId'] for u in d.get('users',[])]")
+# /security/users devuelve un ARRAY de usuarios
+USERS=$(json_get "${BASE}/security/users" "' '.join(u['userId'] for u in (d if isinstance(d,list) else d.get('users',[])))")
 
 ensure_user() { # ensure_user <userId> <firstName> <lastName> <password-var> <rol>
-    local id="$1" first="$2" last="$3" pass_var="$4" role="$5" pass body
+    local id="$1" first="$2" last="$3" pass_var="$4" role="$5" pass body current
     if echo " ${USERS} " | grep -q " ${id} "; then
         ok "usuario '${id}' (rol ${role})"
         # Asegura el rol aunque el usuario ya exista
-        local current
-        current=$(json_get "${BASE}/security/users/${id}" "','.join(d.get('roles',[]))")
-        if echo ",${current}," | grep -q ",${role},"; then
+        # GET /security/users/{userId} no existe (405): se leen los roles desde
+        # la lista completa de usuarios.
+        current=$(json_get "${BASE}/security/users" \
+            "str([r for u in (d if isinstance(d,list) else []) if u.get('userId')=='${id}' for r in u.get('roles',[])])")
+        if echo "${current}" | grep -q "${role}"; then
             ok "  '${id}' ya tiene el rol '${role}'"
         else
             make "  asignar rol '${role}' a '${id}'"
@@ -152,6 +163,10 @@ ensure_user() { # ensure_user <userId> <firstName> <lastName> <password-var> <ro
     fi
     pass="${!pass_var:-}"
     [[ -n "${pass}" ]] || { warn "usuario '${id}' no existe y falta ${pass_var} en .env (no se crea)"; return 0; }
+    # Contraseña = usuario: se permite (no bloquea) pero se avisa.
+    if [[ "${pass}" == "${id}" ]]; then
+        warn "la contraseña de '${id}' es igual al usuario (débil) - ${pass_var}"
+    fi
     body=$(python3 -c "
 import json,sys
 print(json.dumps({'userId':sys.argv[1],'firstName':sys.argv[2],'lastName':sys.argv[3],
