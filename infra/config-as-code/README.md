@@ -46,7 +46,32 @@ SonarQube. Opciones:
 | `--rebuild` | reconstruye las imágenes (`docker compose up -d --build`) |
 | `--apply-jenkins` | aplica `jenkins.yaml` (ver nota abajo) |
 
-## Jenkins como código
+## Jenkins como código (2 comandos)
+
+```bash
+# 1. Exporta la configuración ACTUAL de la instancia a YAML (solo lectura)
+./infra/config-as-code/jenkins/export-jenkins.sh
+
+# 2. Aplica credenciales + config del servidor (idempotente, SIN reiniciar)
+./infra/config-as-code/jenkins/configure-jenkins.sh
+./infra/config-as-code/jenkins/configure-jenkins.sh --dry-run
+```
+
+`configure-jenkins.sh` usa la API de Jenkins (check-then-create) y **no toca la
+seguridad ni el usuario admin**:
+
+| Elemento | Cómo |
+|---|---|
+| `nexus-credential` | creada si falta (usuario `ci-publisher` + `NEXUS_CI_PUBLISHER_PASSWORD`) |
+| `sonarqube-token` | creada si falta; si no está en `.env` **se genera** con la API de SonarQube y se guarda en `.env` |
+| `git-credential` | solo si hay `GIT_USERNAME` / `GIT_PASSWORD` en `.env` (si no, `[WARN]`) |
+| `ssh-deploy-dev/-stage/-prod` | **[MANUAL] a propósito** (decisión de seguridad: la llave SSH más sensible no se automatiza) → Manage Jenkins > Credentials |
+| `location.url` | `http://<IP>:8080/` |
+| GitHub `hookUrl` | `http://<IP>:8080/github-webhook/` |
+| Instalación SonarQube | `CircleGuard-SonarQube` @ `SONARQUBE_URL` con credencial `sonarqube-token` |
+
+> El `jenkins.yaml` sigue siendo el **export/referencia** de la configuración
+> completa; aplicarlo (JCasC) es opcional y requiere reinicio — ver abajo.
 
 ```bash
 ./infra/config-as-code/jenkins/export-jenkins.sh      # escribe jenkins.yaml
