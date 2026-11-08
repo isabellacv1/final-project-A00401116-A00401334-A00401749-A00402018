@@ -58,6 +58,10 @@ subprojects {
 
     tasks.named<Test>("test") {
         exclude("**/*IT.class")
+        // Benchmarks depend on the hardware, they run with performanceTest instead
+        useJUnitPlatform {
+            excludeTags("performance")
+        }
         finalizedBy("jacocoTestReport")
     }
 
@@ -83,6 +87,28 @@ subprojects {
 
             dependsOn(tasks.named("testClasses"))
             shouldRunAfter(tasks.named("test"))
+        }
+
+        tasks.register<Test>("performanceTest") {
+            description = "Runs performance benchmarks tagged with 'performance'."
+            group = "verification"
+
+            val testSourceSet = project.extensions
+                .getByType<SourceSetContainer>()
+                .getByName("test")
+
+            testClassesDirs = testSourceSet.output.classesDirs
+            classpath = testSourceSet.runtimeClasspath
+
+            useJUnitPlatform {
+                includeTags("performance")
+            }
+
+            filter {
+                isFailOnNoMatchingTests = false
+            }
+
+            dependsOn(tasks.named("testClasses"))
         }
     }
     tasks.withType<JacocoReport> {
