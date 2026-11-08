@@ -25,7 +25,7 @@ set -a; source "${ENV_FILE}"; set +a
 : "${SONARQUBE_QUALITY_GATE:=circle-guard}"
 : "${SONARQUBE_PROJECT_KEY:=circleGuard}"
 : "${SONARQUBE_WEBHOOK_NAME:=Jenkins-Webhook}"
-: "${SONARQUBE_WEBHOOK_URL:=http://10.20.1.22:8080/sonarqube-webhook/}"
+: "${SONARQUBE_WEBHOOK_URL:=http://10.20.1.230:8080/sonarqube-webhook/}"
 
 CREATED=0
 UNCHANGED=0

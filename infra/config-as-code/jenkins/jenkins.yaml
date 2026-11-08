@@ -231,7 +231,7 @@ unclassified:
   gitHubConfiguration:
     apiRateLimitChecker: ThrottleForNormalize
   gitHubPluginConfig:
-    hookUrl: "http://98.80.168.139:8080/github-webhook/"
+    hookUrl: "http://100.31.132.57:8080/github-webhook/"
   globalDefaultFlowDurabilityLevel: {
     }
   globalLibraries: {
@@ -255,7 +255,7 @@ unclassified:
     storage: "file"
   location:
     adminAddress: "Dirección no configurada todavía <nobody@nowhere>"
-    url: "http://98.80.168.139:8080/"
+    url: "http://100.31.132.57:8080/"
   mailer:
     charset: "UTF-8"
     useSsl: false
@@ -296,7 +296,7 @@ unclassified:
     installations:
     - credentialsId: "sonarqube-token"
       name: "CircleGuard-SonarQube"
-      serverUrl: "http://10.20.1.202:9092"
+      serverUrl: "http://10.20.1.230:9092"
       triggers:
         skipScmCause: false
         skipUpstreamCause: false

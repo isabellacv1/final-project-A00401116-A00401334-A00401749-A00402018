@@ -84,7 +84,7 @@ Garantiza que existan (crea solo lo que falta):
 | Quality gate | `circle-guard` |
 | Condiciones | `new_coverage ≥ 60`, `new_duplicated_lines_density ≤ 3`, `new_security_hotspots_reviewed ≥ 100`, `new_violations = 0` |
 | Proyecto asociado | `circleGuard` |
-| Webhook | `Jenkins-Webhook` → `http://10.20.1.22:8080/sonarqube-webhook/` |
+| Webhook | `Jenkins-Webhook` → `http://10.20.1.230:8080/sonarqube-webhook/` |
 | Seguridad | `sonar.forceAuthentication = true` |
 
 ## Evidencia de idempotencia

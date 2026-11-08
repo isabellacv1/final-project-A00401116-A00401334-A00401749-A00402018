@@ -107,6 +107,21 @@ if [[ "${SYNC}" == "true" ]]; then
             info "${svc} sincronizado en ${target_host}"
         fi
     done
+    # El GID del grupo docker cambia en cada instancia: se recalcula en el destino
+    # para que group_add del compose apunte al grupo real (si no, Jenkins no
+    # puede usar /var/run/docker.sock).
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        echo "    [DRY] recalcularía DOCKER_GID en ${CI_DEVOPS_HOST}:~/jenkins/.env"
+    else
+        run_remote "${CI_DEVOPS_HOST}" '
+            GID=$(getent group docker | cut -d: -f3)
+            if [ -n "$GID" ] && [ -f ~/jenkins/.env ]; then
+                sed -i "s/^DOCKER_GID=.*/DOCKER_GID=${GID}/" ~/jenkins/.env
+                echo "    DOCKER_GID recalculado = ${GID}"
+            else
+                echo "    [WARN] no se pudo recalcular DOCKER_GID (grupo docker o .env ausente)"
+            fi'
+    fi
 else
     log "2/5 Sincronización omitida (use --sync para copiar los compose del repo)"
 fi

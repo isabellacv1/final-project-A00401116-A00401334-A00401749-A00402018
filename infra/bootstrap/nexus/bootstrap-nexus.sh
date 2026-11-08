@@ -110,5 +110,5 @@ else
 fi
 
 echo
-log "Interfaz: http://<IP-PUBLICA-CG-DEVOPS>:8081"
+log "Interfaz: http://100.31.132.57:8081"
 log "Logs: docker logs -f nexus"
