@@ -25,7 +25,9 @@ Jenkins runs the CI pipeline of CircleGuard.
 
 circleguardPipeline(
     integrationTests: true,
-    sonar: false
+    sonar: false,
+    publish: true,
+    discordCredentialsId: 'discord-webhook-url'
 )
 ```
 
@@ -88,10 +90,17 @@ smee.io channel ──► smee-client container ──► Jenkins /github-webhoo
 | Tests | `./gradlew test --continue` | 45 min |
 | Integration tests | `./gradlew integrationTest --continue` | 30 min |
 | SonarQube | analysis + quality gate | off (`sonar: false`) |
+| Publish images | `docker build` + `docker push` to Nexus | 40 min (`publish: true`) |
 
 After every run, even if a stage fails, Jenkins publishes the JUnit results and archives the test and
 JaCoCo reports. Performance benchmarks are not part of the pipeline; run them with
 `./gradlew performanceTest`.
+
+When a build fails, the shared library sends a Discord message with the job, build number, branch,
+commit and build URL. The webhook URL is stored in Jenkins as a **Secret text** credential with id
+`discord-webhook-url` (configured by `infra/config-as-code/jenkins/configure-jenkins.sh` or manually
+in **Manage Jenkins → Credentials**). The images are tagged with the semantic version resolved from
+the Git tags (see [versionado.md](../versionado.md)), never with `latest`.
 
 ### Testcontainers inside Jenkins
 

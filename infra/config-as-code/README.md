@@ -64,6 +64,7 @@ seguridad ni el usuario admin**:
 |---|---|
 | `nexus-credential` | creada si falta (usuario `ci-publisher` + `NEXUS_CI_PUBLISHER_PASSWORD`) |
 | `sonarqube-token` | creada si falta; si no está en `.env` **se genera** con la API de SonarQube y se guarda en `.env` |
+| `discord-webhook-url` | creada si falta, a partir de `DISCORD_WEBHOOK_URL` en `.env` (Secret text) |
 | `git-credential` | solo si hay `GIT_USERNAME` / `GIT_PASSWORD` en `.env` (si no, `[WARN]`) |
 | `ssh-deploy-dev/-stage/-prod` | **[MANUAL] a propósito** (decisión de seguridad: la llave SSH más sensible no se automatiza) → Manage Jenkins > Credentials |
 | `location.url` | `http://<IP>:8080/` |
@@ -80,7 +81,8 @@ seguridad ni el usuario admin**:
 
 - **Solo lectura**: consulta `/manage/configuration-as-code/viewExport` y extrae el YAML.
 - Los secretos cifrados por la instancia (`{AQAA...}`) se reemplazan por
-  `${ENV:GIT_PASSWORD}`, `${ENV:SONARQUBE_TOKEN}`, `${ENV:SSH_DEPLOY_*_KEY}`, etc.
+  `${ENV:GIT_PASSWORD}`, `${ENV:SONARQUBE_TOKEN}`, `${ENV:DISCORD_WEBHOOK_URL}`,
+  `${ENV:SSH_DEPLOY_*_KEY}`, etc.
   Así el archivo es portable y no lleva secretos versionados.
 - **Aplicarlo es opcional y requiere reinicio**: montar `jenkins.yaml` en el
   contenedor y pasar las variables en `infra/bootstrap/jenkins/docker-compose.yml`:

@@ -4,5 +4,7 @@
 
 circleguardPipeline(
     integrationTests: true,
-    sonar: false
+    sonar: false,
+    publish: true,
+    discordCredentialsId: 'discord-webhook-url'
 )
