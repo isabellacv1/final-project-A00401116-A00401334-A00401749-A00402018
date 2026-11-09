@@ -4,7 +4,11 @@
 
 circleguardPipeline(
     integrationTests: true,
-    sonar: false,
+    // SonarQube analysis + quality gate (project CircleGuard)
+    sonar: true,
+    sonarProjectKey: 'CircleGuard',
+    // Pushes the images to the Nexus docker-hosted registry from dev and main
     publish: true,
+    // Failure notifications
     discordCredentialsId: 'discord-webhook-url'
 )
