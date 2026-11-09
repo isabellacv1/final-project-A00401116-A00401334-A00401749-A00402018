@@ -1,5 +1,7 @@
 # Evidencia de pruebas CircleGuard
 
+> El pipeline que ejecuta estas pruebas en Jenkins se describe en [`pipeline.md`](pipeline.md).
+
 ## Pruebas unitarias
 
 ### Contexto

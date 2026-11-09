@@ -9,7 +9,7 @@ tags and the workflow that runs semantic-release are part of HU-18 (see [`versio
 
 | File | Purpose |
 |------|---------|
-| [`.releaserc.json`](../.releaserc.json) | `release-notes-generator` (notes) and `@semantic-release/github` (GitHub Release) plugins. |
+| [`.releaserc.json`](../../.releaserc.json) | `release-notes-generator` (notes) and `@semantic-release/github` (GitHub Release) plugins. |
 
 ## Release notes
 

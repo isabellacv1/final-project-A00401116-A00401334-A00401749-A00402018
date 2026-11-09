@@ -1,10 +1,4 @@
-# CircleGuard — Contexto del Proyecto
-
-> Documento generado por análisis directo del código. Toda afirmación verificada lleva
-> referencia a archivo/símbolo real. Lo **no verificable** se marca explícitamente.
-> Fecha del análisis: 2026-11-01.
-
----
+# CircleGuard — Contexto técnico
 
 ## 1. Resumen del sistema
 
@@ -66,39 +60,11 @@ Hechos arquitectónicos verificados:
   nota "folders are missing on disk". Hay **duplicación real** derivada de esto: el
   `JwtAuthenticationFilter` está copiado en `promotion` (paquete `security/`) e `identity`
   (paquete `config/`), y el filtro/secret JWT se repiten en `auth`.
-- **Kubernetes aparece en el README pero no en el repo.** No hay `Dockerfile`, ni manifiestos,
-  ni Helm chart. La única infraestructura como código es `docker-compose.dev.yml` (middleware
-  de desarrollo).
-
----
-
-## 3. Tecnologías (verificadas en build, no en README)
-
-⚠️ Varios puntos del README **no coinciden con el código**. Ver tabla §10.
-
-| Capa | Tecnología real | Evidencia |
-|---|---|---|
-| Lenguaje backend | **Java 21** (todo el código fuente es `.java`) | toolchain en `build.gradle.kts` raíz L21-25 |
-| Framework backend | **Spring Boot 3.2.4** (NO "Spring Boot 4" como dice el README) | `build.gradle.kts` raíz L2, L28 |
-| Build | **Gradle Kotlin DSL** multi-módulo (**no hay ningún `pom.xml`**) | `settings.gradle.kts`, `build.gradle.kts` |
-| Grafo | **Neo4j 5.26** (Spring Data Neo4j) | `promotion/build.gradle.kts`, `docker-compose.dev.yml` |
-| Relacional | **PostgreSQL 16** (Spring Data JPA + Flyway) | `init-db.sql`, migraciones `db/migration/` |
-| Caché / estado | **Redis 7.2** | `promotion`, `gateway` |
-| Mensajería | **Apache Kafka 7.6** (confluent) | `docker-compose.dev.yml`, `spring-kafka` |
-| Auth directorio | **OpenLDAP** (`osixia/openldap`, dominio `circleguard.edu`) | `auth/application.yml`, compose |
-| Seguridad | **Spring Security + JJWT 0.11.5** (JWT HS256) | `auth`, `promotion`, `identity` |
-| Cifrado vault | **Spring Security `Encryptors`** (AES con clave derivada) | `identity/util/IdentityEncryptionConverter` |
-| Notificaciones | **Spring Mail**, **Twilio** (SMS), **Gotify** (push), **FreeMarker** (templates) | `notification/build.gradle.kts` |
-| Caché L2 local | **Caffeine** | `promotion/build.gradle.kts`, `CacheConfig` |
-| Móvil | **Expo ~55 / React Native 0.83.4 / React 19.2 / expo-router** | `mobile/package.json` |
-| Estilos móvil | **NativeWind 4 + TailwindCSS 3.4** | `mobile/package.json` |
-| Testing backend | JUnit 5, MockMvc, **Testcontainers 1.19.3** (solo en `promotion`) | `promotion/build.gradle.kts` |
-| Testing móvil | **jest-expo + @testing-library/react-native** | `mobile/package.json` |
-
-**No presentes** (verificado por ausencia): Kubernetes, Dockerfiles, Swagger/springdoc
-(cero dependencias en todo el repo, pese a que el README promete OpenAPI 3.0 en cada
-servicio), S3/MinIO (bloque comentado en `file-service/application.yml`), librerías BLE reales
-en el móvil.
+- **No se usa Kubernetes.** El despliegue es Docker Compose sobre instancias EC2; las
+  imágenes se publican en Nexus y se despliegan con `deploy/docker-compose.yml` (ver
+  [`docs/operaciones/despliegue.md`](../operaciones/despliegue.md)). La infraestructura de
+  CI/CD (Jenkins, Nexus, SonarQube) se aprovisiona con scripts Bash y Docker Compose en
+  `infra/bootstrap/`.
 
 ---
 
@@ -117,7 +83,7 @@ en el móvil.
 | `circleguard-dashboard-service` | **8084** | Analítica de campus con filtro **k-anonimato** | PostgreSQL `circleguard_dashboard` |
 | `circleguard-file-service` | **8085** | Subida de archivos (multipart) | Disco local (`uploads/`) |
 
-### 4.2 `circleguard-promotion-service` — el núcleo (mayor complejidad)
+### 4.2 `circleguard-promotion-service` — el núcleo 
 
 Ubicación: `services/circleguard-promotion-service/src/main/java/com/circleguard/promotion/`
 
@@ -152,10 +118,10 @@ Ubicación: `services/circleguard-promotion-service/src/main/java/com/circleguar
 
 ### 4.4 Otros directorios
 
-- **`docs/`** — solo assets de diseño (PNG de mockups + 2 HTML). **No hay documentación de arquitectura previa**; este archivo es la primera.
+- **`docs/`** — documentación del proyecto (arquitectura, operaciones, proceso ágil) y assets de diseño.
 - **`design-assets/`**, **`scratch/`** — artefactos de diseño/trabajo, no forman parte del sistema en runtime.
 - **`Proyecto_Final_CircleGuard.{pdf,tex}`** — documento LaTeX/PDF del proyecto (material académico).
-- **`.github/`** — **directorio vacío** (no hay CI/CD configurado).
+- **`.github/`** — workflows de `commitlint` y versionado semántico, además de la plantilla de PR.
 - **`.agent/workflows/run-project.md`** — workflow de agente; no afecta al runtime.
 
 ---
@@ -264,12 +230,12 @@ con `statusUpdatedAt < now - mandatoryFenceDays`, con `reason: AUTO_WINDOW_EXPIR
 | `circleguard_auth` | auth | `permissions`, `roles`, `role_permissions`, `local_users`, `user_roles` (V1-V5) |
 | `circleguard_identity` | identity | `identity_mappings` (`anonymous_id` PK, `real_identity_encrypted BYTEA`, `identity_hash` UNIQUE, `salt`) |
 | `circleguard_promotion` | promotion | `system_settings`, `buildings`, `floors`, `access_points` (V1-V3) |
-| `circleguard_dashboard` | dashboard | `entry_logs` (V1) ⚠️ **sin entidad JPA ni escritor** |
+| `circleguard_dashboard` | dashboard | `entry_logs` (V1)  **sin entidad JPA ni escritor** |
 | `circleguard_form` | form | `health_surveys`, `questionnaires`, `questions` (V1-V5, con `JSONB`) |
 
-⚠️ `gateway` y `notification` no tienen esquema propio.
+ `gateway` y `notification` no tienen esquema propio.
 
-⚠️ **Inconsistencia de migración**: los `application.yml` de `auth`, `identity` y `promotion`
+**Inconsistencia de migración**: los `application.yml` de `auth`, `identity` y `promotion`
 declaran `jpa.hibernate.ddl-auto: update` **a pesar de usar Flyway**. Puede regenerar/esquema
 en conflicto. `form` y `dashboard` también usan `update`.
 
@@ -292,7 +258,7 @@ en conflicto. `form` y `dashboard` también usan `update`.
 ### 6.4 Almacenamiento de archivos
 
 - `form/StorageService`: disco local `/tmp/circleguard-uploads`.
-- `file/FileStorageService`: disco relativo `uploads/` (CWD). ⚠️ `loadFile()` es un stub que
+- `file/FileStorageService`: disco relativo `uploads/` (CWD).  `loadFile()` es un stub que
   `return null` y declara una `interface Resource {}` local que **sombrea** `org.springframework.core.io.Resource`.
 - S3/MinIO: **pendiente** (bloque comentado en `file-service/application.yml`).
 
@@ -307,7 +273,7 @@ en conflicto. `form` y `dashboard` también usan `update`.
   clave derivada), en columna `BYTEA`.
 - **Blind index** (`IdentityVaultService.computeHash`): `SHA-256(input + hashSalt)` con
   `hash-salt` **global** (`vault.hash-salt`).
-  ⚠️ Existe una columna `salt` por usuario que **se genera y persiste pero nunca se usa** en
+  Existe una columna `salt` por usuario que **se genera y persiste pero nunca se usa** en
   el cálculo del hash. No es "hash con sal por usuario" pese a lo que sugiere el esquema.
 - El grafo Neo4j **solo contiene `anonymousId`**; nunca identidad real. Consistente con el
   objetivo de privacidad del README.
@@ -341,6 +307,10 @@ en conflicto. `form` y `dashboard` también usan `update`.
 ---
 
 ## 8. Configuración y ejecución
+
+> Los comandos de esta sección son para desarrollo local. El despliegue en AWS, las imágenes
+> y la promoción entre entornos se documentan en
+> [`docs/operaciones/despliegue.md`](../operaciones/despliegue.md).
 
 ### 8.1 Infraestructura de desarrollo
 
@@ -385,7 +355,11 @@ solo para desarrollo local.
 
 ### 9.1 Backend
 
-Estado actual (tras los arreglos de §12): **52 tests, 0 fallos, 0 errores** en los 8 servicios.
+> Estado al momento del análisis. La evidencia actual de pruebas y cobertura está en
+> [`docs/operaciones/pruebas.md`](../operaciones/pruebas.md).
+
+Estado en el momento del análisis (tras los arreglos de §12): **52 tests, 0 fallos, 0 errores**
+en los 8 servicios.
 `./gradlew test` → `BUILD SUCCESSFUL`.
 
 Distribución: `promotion` 20 · `notification` 11 · `identity` 8 · `form` 6 · `gateway` 3 ·
@@ -414,24 +388,23 @@ Además `useQrToken.test.ts` está desalineado con la firma actual del hook
 
 ### 9.3 CI/CD
 
-**No hay.** `.github/` está vacío. No hay pipeline de build, test ni despliegue.
+El proyecto usa Jenkins (job multibranch `circleguard`) y la librería compartida
+`circleguard-pipeline-library`. El pipeline construye, ejecuta pruebas unitarias, de
+integración y E2E, analiza con SonarQube, publica imágenes en Nexus y despliega en AWS.
+GitHub Actions ejecuta `commitlint` y semantic-release. Ver
+[`docs/operaciones/pipeline.md`](../operaciones/pipeline.md) y
+[`docs/operaciones/versionado.md`](../operaciones/versionado.md).
 
 ---
 
 ## 10. Riesgos, inconsistencias y aspectos desconocidos
 
-### 10.1 Inconsistencias README vs. código (verificadas)
+### 10.1 Inconsistencias históricas del README (ya corregidas)
 
-| README afirma | Realidad en el repo |
-|---|---|
-| "Spring Boot 4" | **Spring Boot 3.2.4** (`build.gradle.kts` raíz) |
-| "Apache Kafka 7.6" como versión de Kafka | 7.6 es la versión de la imagen **Confluent**; el concepto es correcto pero la etiqueta es confusa |
-| "Every service exposes an OpenAPI 3.0 ... swagger-ui" | **No hay springdoc ni Swagger** en ninguna parte |
-| "Kubernetes" como infra | **Sin Dockerfile ni manifiestos k8s** |
-| "Integration tests use Testcontainers" | **Solo** en `circleguard-promotion-service` |
-| "File Service: S3-compatible" | **Disco local**; S3/MinIO comentado |
-| Estados "Suspect → Probable → Confirmed" | Correcto, pero el código también usa `RECOVERED` y el comentario de `UserNode` dice "CONTAGIED" (inconsistente) |
-| "Dual-chain LDAP (University) / Local (Guest)" | Correcto y verificado |
+El README original afirmaba Spring Boot 4, Kubernetes, OpenAPI/Swagger en todos los servicios
+y S3 para `file-service`. El README actual y este documento reflejan la realidad del código:
+Spring Boot 3.2.4, Docker Compose sobre EC2, sin Swagger y con almacenamiento local. Se
+conservan los riesgos de las secciones siguientes porque siguen vigentes.
 
 ### 10.2 Riesgos de seguridad y robustez (verificados en código)
 
@@ -547,6 +520,9 @@ corregir o tener presentes.
 Registro de lo que **no funcionaba**, por qué, y cómo se solucionó. Todo verificado
 empíricamente: se reprodujo el fallo, se aplicó el arreglo, y se comprobó que pasaba.
 
+> Este changelog es histórico. La evidencia actual de pruebas y cobertura está en
+> [`docs/operaciones/pruebas.md`](../operaciones/pruebas.md).
+
 ### 12.0 Cómo ejecutar el proyecto (lo que hay que saber)
 
 ```bash
@@ -557,11 +533,6 @@ docker compose -f docker-compose.dev.yml up -d   # infraestructura
 ./gradlew test                                    # 52 tests, 0 fallos
 ./gradlew :services:circleguard-promotion-service:bootRun   # un servicio
 ```
-
-> **Advertencia de puerto:** `docker-compose.dev.yml` publica PostgreSQL en el **5432**.
-> Si otro proyecto local ya usa ese puerto, el `compose up` falla. En este entorno había un
-> contenedor `amarela_makeup` ocupándolo y se detuvo para poder levantar CircleGuard.
-
 ---
 
 ### 12.1 Bug en producción — colisión de caché que rompía el endpoint central
