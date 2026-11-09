@@ -4,6 +4,16 @@ plugins {
     kotlin("jvm") version "1.9.24" apply false
     kotlin("plugin.spring") version "1.9.24" apply false
     kotlin("plugin.jpa") version "1.9.24" apply false
+    id("org.sonarqube") version "6.2.0.5505"
+}
+
+// SonarQube analysis (run by the CI pipeline with ./gradlew sonar).
+// Server URL and token come from Jenkins; coverage comes from the JaCoCo XML reports.
+sonar {
+    properties {
+        property("sonar.projectKey", "CircleGuard")
+        property("sonar.projectName", "CircleGuard")
+    }
 }
 
 allprojects {
@@ -15,9 +25,18 @@ allprojects {
     }
 }
 
+val coverageGatedServices = setOf(
+    ":services:circleguard-auth-service",
+    ":services:circleguard-identity-service",
+    ":services:circleguard-promotion-service",
+    ":services:circleguard-form-service",
+    ":services:circleguard-gateway-service"
+)
+
 subprojects {
     apply(plugin = "java")
     apply(plugin = "org.jetbrains.kotlin.jvm")
+    apply(plugin = "jacoco")
     extensions.configure<JavaPluginExtension> {
         toolchain {
             languageVersion.set(JavaLanguageVersion.of(21))
@@ -45,5 +64,88 @@ subprojects {
 
     tasks.withType<Test> {
         useJUnitPlatform()
+    }
+
+    tasks.named<Test>("test") {
+        exclude("**/*IT.class")
+        // Benchmarks depend on the hardware, they run with performanceTest instead
+        useJUnitPlatform {
+            excludeTags("performance")
+        }
+        finalizedBy("jacocoTestReport")
+    }
+
+    if (path != ":services") {
+        tasks.register<Test>("integrationTest") {
+            description = "Runs integration tests tagged with 'integration'."
+            group = "verification"
+
+            val testSourceSet = project.extensions
+                .getByType<SourceSetContainer>()
+                .getByName("test")
+
+            testClassesDirs = testSourceSet.output.classesDirs
+            classpath = testSourceSet.runtimeClasspath
+
+            useJUnitPlatform {
+                includeTags("integration")
+            }
+
+            filter {
+                isFailOnNoMatchingTests = false
+            }
+
+            dependsOn(tasks.named("testClasses"))
+            shouldRunAfter(tasks.named("test"))
+        }
+
+        tasks.register<Test>("performanceTest") {
+            description = "Runs performance benchmarks tagged with 'performance'."
+            group = "verification"
+
+            val testSourceSet = project.extensions
+                .getByType<SourceSetContainer>()
+                .getByName("test")
+
+            testClassesDirs = testSourceSet.output.classesDirs
+            classpath = testSourceSet.runtimeClasspath
+
+            useJUnitPlatform {
+                includeTags("performance")
+            }
+
+            filter {
+                isFailOnNoMatchingTests = false
+            }
+
+            dependsOn(tasks.named("testClasses"))
+        }
+    }
+    tasks.withType<JacocoReport> {
+        reports {
+            xml.required.set(true)
+            html.required.set(true)
+        }
+    }
+
+    if (path in coverageGatedServices) {
+        tasks.named<org.gradle.testing.jacoco.tasks.JacocoCoverageVerification>(
+            "jacocoTestCoverageVerification"
+        ) {
+            dependsOn("test")
+            violationRules {
+                rule {
+                    limit {
+                        counter = "LINE"
+                        value = "COVEREDRATIO"
+                        minimum = "0.60".toBigDecimal()
+                    }
+                }
+            }
+        }
+
+        tasks.named("check") {
+            dependsOn("jacocoTestCoverageVerification")
+        }
     }
 }

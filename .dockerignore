@@ -1,0 +1,20 @@
+# Build context hygiene: only what the Gradle build needs
+.git
+.gitignore
+.gradle
+**/build
+**/bin
+
+# Not needed to build the backend images
+mobile
+docs
+design-assets
+scratch
+.agent
+.github
+docker-compose*.yml
+init-db.sql
+*.pdf
+*.tex
+logo-icesi.png
+dashboard_test_output.txt

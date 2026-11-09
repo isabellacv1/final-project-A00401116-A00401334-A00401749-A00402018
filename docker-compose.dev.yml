@@ -1,4 +1,13 @@
-version: '3.8'
+# Infrastructure (middleware) for CircleGuard.
+#
+# Alone, it is the local development stack for running the services with Gradle:
+#   docker compose -f docker-compose.dev.yml up -d
+#
+# Together with docker-compose.app.yml it runs the whole platform in containers:
+#   docker compose -f docker-compose.dev.yml -f docker-compose.app.yml up -d --build
+#
+# Every container has a healthcheck so the application services can wait until
+# their dependencies are really ready (depends_on: condition: service_healthy).
 
 services:
   postgres:
@@ -13,6 +22,16 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - circleguard-net
+    healthcheck:
+      # -h localhost forces a TCP check, so the container is not reported ready
+      # while the entrypoint is still running init-db.sql on the temporary server.
+      test: ["CMD-SHELL", "pg_isready -h localhost -U admin -d circleguard"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   neo4j:
     image: neo4j:5.26
@@ -27,6 +46,14 @@ services:
       NEO4J_dbms_connector_bolt_advertised__address: :7687
     volumes:
       - neo4jdata:/data
+    networks:
+      - circleguard-net
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p password 'RETURN 1' > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.6.0
@@ -34,27 +61,53 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - circleguard-net
+    healthcheck:
+      test: ["CMD-SHELL", "zookeeper-shell localhost:2181 ls / > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
 
   kafka:
     image: confluentinc/cp-kafka:7.6.0
     container_name: circleguard-kafka
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     ports:
       - "9092:9092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # Two listeners: PLAINTEXT for apps on the host, INTERNAL for containers.
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,INTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - circleguard-net
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:29092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
 
   redis:
     image: redis:7.2
     container_name: circleguard-redis
     ports:
       - "6379:6379"
+    networks:
+      - circleguard-net
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   openldap:
     image: osixia/openldap:1.5.0
@@ -66,6 +119,19 @@ services:
       LDAP_ORGANISATION: "CircleGuard"
       LDAP_DOMAIN: "circleguard.edu"
       LDAP_ADMIN_PASSWORD: "admin"
+    networks:
+      - circleguard-net
+    healthcheck:
+      test: ["CMD-SHELL", "ldapsearch -x -H ldap://localhost:389 -D cn=admin,dc=circleguard,dc=edu -w admin -b dc=circleguard,dc=edu -s base dn > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+networks:
+  circleguard-net:
+    name: circleguard-net
+    driver: bridge
 
 volumes:
   pgdata:

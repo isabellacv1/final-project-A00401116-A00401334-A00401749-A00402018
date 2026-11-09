@@ -18,6 +18,13 @@ spring:
     username: cn=admin,dc=circleguard,dc=edu
     password: admin
 
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8081,http://localhost:8080}
+
+identity:
+  api:
+    url: ${IDENTITY_API_URL:http://localhost:8083}
+
 jwt:
   secret: "my-super-secret-dev-key-32-chars-long-12345678"
   expiration: 3600000

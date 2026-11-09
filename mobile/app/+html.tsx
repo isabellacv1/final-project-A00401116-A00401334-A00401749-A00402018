@@ -20,6 +20,13 @@ export default function Root({ children }: { children: React.ReactNode }) {
 
         {/* Using raw CSS styles as an escape-hatch to ensure the background color never flickers in dark-mode. */}
         <style dangerouslySetInnerHTML={{ __html: responsiveBackground }} />
+
+        {/*
+          Runtime configuration (service URLs). Loaded synchronously before the app
+          bundle so constants/Config.ts can read window.__ENV__. In the Docker image
+          this file is regenerated from environment variables at container start.
+        */}
+        <script src="/env-config.js" />
         {/* Add any additional <head> elements that you want globally available on web... */}
       </head>
       <body>{children}</body>

@@ -34,12 +34,12 @@ export default function ScannerScreen() {
     };
 
     if (!permission) {
-        return <View style={styles.container}><MeshBackground /></View>;
+        return <View style={styles.container} testID="scan-container"><MeshBackground /></View>;
     }
 
     if (!permission.granted) {
         return (
-            <View style={styles.container}>
+            <View style={styles.container} testID="scan-container">
                 <MeshBackground />
                 <View style={styles.centerContainer}>
                     <Camera size={64} color="#52525b" strokeWidth={1} />
@@ -54,7 +54,7 @@ export default function ScannerScreen() {
 
     if (!isAuthenticated) {
         return (
-            <View style={styles.container}>
+            <View style={styles.container} testID="scan-container">
                 <MeshBackground />
                 <View style={styles.centerContainer}>
                     <View style={styles.lockIconContainer}>
@@ -75,7 +75,7 @@ export default function ScannerScreen() {
     }
 
     return (
-        <View style={styles.container}>
+        <View style={styles.container} testID="scan-container">
             <CameraView
                 style={StyleSheet.absoluteFillObject}
                 facing="back"
@@ -105,11 +105,19 @@ export default function ScannerScreen() {
                 </View>
             </CameraView>
 
-            <ScanResultOverlay 
-                status={status} 
-                result={result} 
-                onDismiss={handleDismiss} 
-            />
+            {status !== 'idle' && (
+                <View
+                    testID="scan-result-overlay"
+                    pointerEvents="box-none"
+                    style={StyleSheet.absoluteFillObject}
+                >
+                    <ScanResultOverlay
+                        status={status}
+                        result={result}
+                        onDismiss={handleDismiss}
+                    />
+                </View>
+            )}
         </View>
     );
 }

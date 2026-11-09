@@ -1,0 +1,30 @@
+
+services:
+  sonarqube:
+    image: sonarqube:10-community
+    container_name: sonarqube
+    restart: unless-stopped
+
+    ports:
+      - "9092:9000"
+
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+
+    ulimits:
+      nofile:
+        soft: 131072
+        hard: 131072
+      nproc: 8192
+
+volumes:
+  sonarqube_data:
+    name: circleguard-sonarqube-data
+
+  sonarqube_extensions:
+    name: circleguard-sonarqube-extensions
+
+  sonarqube_logs:
+    name: circleguard-sonarqube-logs
