@@ -54,6 +54,10 @@ credentials:
           id: "sonarqube-token"
           scope: GLOBAL
           secret: "${ENV:SONARQUBE_TOKEN}"
+      - string:
+          id: "discord-webhook-url"
+          scope: GLOBAL
+          secret: "${ENV:DISCORD_WEBHOOK_URL}"
       domain: {
         }
   user: {

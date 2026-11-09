@@ -8,5 +8,7 @@ circleguardPipeline(
     sonar: true,
     sonarProjectKey: 'CircleGuard',
     // Pushes the images to the Nexus docker-hosted registry from dev and main
-    publish: true
+    publish: true,
+    // Failure notifications
+    discordCredentialsId: 'discord-webhook-url'
 )

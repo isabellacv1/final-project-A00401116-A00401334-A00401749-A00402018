@@ -62,6 +62,7 @@ PLACEHOLDERS = {
     "git-credential":        ("username", "${ENV:GIT_USERNAME}",           "password", "${ENV:GIT_PASSWORD}"),
     "nexus-credential":      ("username", "${ENV:NEXUS_PUBLISHER_USERNAME}", "password", "${ENV:NEXUS_PUBLISHER_PASSWORD}"),
     "sonarqube-token":       (None, None,                                  "secret",   "${ENV:SONARQUBE_TOKEN}"),
+    "discord-webhook-url":   (None, None,                                  "secret",   "${ENV:DISCORD_WEBHOOK_URL}"),
 }
 SSH_KEY_ENV = {"ssh-deploy-dev": "${ENV:SSH_DEPLOY_DEV_KEY}",
                "ssh-deploy-stage": "${ENV:SSH_DEPLOY_STAGE_KEY}",
