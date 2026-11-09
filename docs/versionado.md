@@ -1,6 +1,6 @@
-# Versionado semántico automático (HU-18)
+# Versionado semántico automático
 
-## Herramienta
+## Herramienta 
 
 Se usa **semantic-release 24** con el preset **conventionalcommits**. El proyecto ya valida los
 mensajes con Conventional Commits (`commitlint.config.mjs`, `.githooks/commit-msg` y el workflow
