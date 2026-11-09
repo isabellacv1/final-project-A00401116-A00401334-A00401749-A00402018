@@ -7,8 +7,8 @@ mensajes con Conventional Commits (`commitlint.config.mjs`, `.githooks/commit-ms
 `Commit lint`), así que el historial de commits es la entrada que semantic-release necesita para
 calcular la versión.
 
-La configuración está en [`.releaserc.json`](../.releaserc.json) y el workflow que la ejecuta en
-[`.github/workflows/semantic-versioning.yml`](../.github/workflows/semantic-versioning.yml).
+La configuración está en [`.releaserc.json`](../../.releaserc.json) y el workflow que la ejecuta en
+[`.github/workflows/semantic-versioning.yml`](../../.github/workflows/semantic-versioning.yml).
 
 ## Dónde y cuándo se ejecuta
 
@@ -53,7 +53,8 @@ El `Jenkinsfile` habilita la publicación de imágenes con `publish: true`. La e
 de la librería `circleguard-pipeline-library` usa `resolveVersion()`:
 
 - Si el commit tiene un tag de release (`vX.Y.Z` o `vX.Y.Z-dev.N`), la imagen se publica con esa
-  versión: `localhost:8082/circleguard/auth-service:1.2.0`.
+  versión: `100.31.132.57:8082/circleguard/auth-service:1.2.0`. El registro es configurable
+  con el parámetro `registry`; los entornos de AWS usan `100.31.132.57:8082`.
 - Si todavía no hay tag para el commit, se usa una pre-release basada en el último tag:
   `1.2.0-build.15.ab12cd3`.
 - Nunca se usa `latest`.
@@ -67,6 +68,18 @@ La librería compartida envía un mensaje a un canal de Discord cuando el pipeli
 webhook se guarda en Jenkins como credencial de tipo **Secret text** con id
 `discord-webhook-url`; el `Jenkinsfile` la referencia con `discordCredentialsId`. El step usa
 `curl`, así que no requiere plugins adicionales ni servidor SMTP.
+
+## Promoción y despliegue
+
+Los tags son la fuente de verdad de la versión. El pipeline publica las imágenes con la
+versión resuelta y reutiliza esa misma versión (`env.IMAGE_VERSION`) en el despliegue a `dev`
+y en las promociones a `stage` y `prod`. Nunca se despliega `latest`.
+
+- Despliegue, entornos y promoción: [`despliegue.md`](despliegue.md).
+- Ejecución del pipeline: [`pipeline.md`](pipeline.md).
+- El rollback usará los tags semánticos: cada versión tiene una imagen publicada con ese tag y
+  se puede volver a desplegar. La implementación está a cargo de otro integrante del equipo; el
+  pipeline actual todavía no expone un paso automatizado.
 
 ## Alcance de esta HU
 
