@@ -3,6 +3,7 @@
 # Jenkins como código, por API (sin reiniciar y SIN tocar la seguridad/usuario):
 #
 #   Credenciales : git-credential, nexus-credential, sonarqube-token,
+#                  discord-webhook-url,
 #                  ssh-deploy-dev / ssh-deploy-stage / ssh-deploy-prod
 #   Config       : location.url, hook de GitHub, instalación de SonarQube
 #
@@ -192,6 +193,15 @@ if [[ -n "${SONARQUBE_TOKEN:-}" ]]; then
         description "Token de SonarQube para el job"
 else
     warn "SONARQUBE_TOKEN vacío -> se omite 'sonarqube-token'"
+fi
+
+DISCORD_WEBHOOK_URL="${DISCORD_WEBHOOK_URL:-}"
+if [[ -n "${DISCORD_WEBHOOK_URL}" && "${DISCORD_WEBHOOK_URL}" != "REEMPLAZAR" ]]; then
+    ensure_credential secret "discord-webhook-url" \
+        secret "${DISCORD_WEBHOOK_URL}" \
+        description "Webhook de Discord para notificaciones de fallo del pipeline"
+else
+    warn "falta DISCORD_WEBHOOK_URL en .env -> se omite 'discord-webhook-url'"
 fi
 
 # Las llaves SSH NO se automatizan a propósito: es una decisión de seguridad

@@ -5,7 +5,7 @@ Every version created by the automatic semantic versioning (HU-18, semantic-rele
 hand.
 
 This part only configures the notes and the publication of the release. The version calculation, the
-tags and the workflow that runs semantic-release are part of HU-18.
+tags and the workflow that runs semantic-release are part of HU-18 (see [`versionado.md`](versionado.md)).
 
 | File | Purpose |
 |------|---------|
