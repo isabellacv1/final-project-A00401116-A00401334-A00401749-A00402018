@@ -69,12 +69,15 @@ smee.io channel ──► smee-client container ──► Jenkins /github-webhoo
 ### Multibranch job settings
 
 - **Source:** GitHub, `isabellacv1/final-project-A00401116-A00401334-A00401749-A00402018`.
-- **Branches:** every branch that has a `Jenkinsfile`, except branches that already have an open PR
-  (those are built as PRs).
+- **Branches:** only `main` and `dev` (filter `main dev PR-*`). Feature branches are not built on their
+  own: they are validated through their pull request.
 - **Pull requests:** PRs from the same repository, built merged with their target branch.
 - **Triggers:** the webhook starts a build on every push. A periodic scan every 30 minutes is kept as a
   fallback in case a webhook is lost.
-- **Deleted branches:** their jobs are removed on the next scan.
+- **Deleted or filtered branches:** their jobs are kept for 30 days and then removed.
+
+Before the filter, merging a PR started two builds at the same time: `dev` (push event) and the feature
+branch, which Jenkins started building as soon as its PR was closed. With the filter only `dev` runs.
 
 ### Status checks reported to GitHub
 
