@@ -76,12 +76,16 @@ canal smee.io ──► contenedor smee-client ──► Jenkins /github-webhook
 ### Configuración del job multibranch
 
 - **Origen:** GitHub, `isabellacv1/final-project-A00401116-A00401334-A00401749-A00402018`.
-- **Ramas:** todas las ramas que tengan un `Jenkinsfile`, excepto las que ya tienen un PR abierto
-  (esas se construyen como PRs).
+- **Ramas:** solo `main` y `dev`, más los PRs (`PR-*`). El filtro del job es `main dev PR-*`;
+  las ramas de feature no se construyen por separado, se validan a través de su pull request.
 - **Pull requests:** PRs del mismo repositorio, construidos fusionados con su rama destino.
-- **Disparadores:** el webhook inicia un build en cada push. Se mantiene un escaneo periódico cada
-  30 minutos como respaldo por si se pierde un webhook.
-- **Ramas eliminadas:** sus jobs se eliminan en el siguiente escaneo.
+- **Disparadores:** el webhook inicia un build en cada push a `main`/`dev` o actualización de PR.
+  Se mantiene un escaneo periódico cada 30 minutos como respaldo por si se pierde un webhook.
+- **Ramas eliminadas o filtradas:** sus jobs se conservan 30 días y después se eliminan
+  (`pruneDeadBranches=true`, `daysToKeep=30`).
+
+Antes del filtro, al fusionar un PR se lanzaban dos builds: `dev` por el push y la rama de
+feature, que Jenkins empezaba a construir al cerrarse el PR. Con el filtro solo corre `dev`.
 
 ### Estados reportados a GitHub
 
@@ -127,6 +131,7 @@ flowchart TD
     Branch{¿Rama dev o main?}
     Deploy[Despliegue automático a dev]
     Verify[Verificación de servicios desplegados]
+    Smoke[Smoke tests HTTP]
     E2E[Pruebas E2E con Playwright]
     Stage[Promoción de la misma versión a stage]
     Approval{Aprobación manual para prod}
@@ -137,7 +142,7 @@ flowchart TD
 
     Change --> Webhook --> Jenkins --> Checkout --> Build --> Tests --> Integration --> Sonar --> Publish --> Branch
     Branch -->|Otras ramas o PR| Status
-    Branch -->|dev| Deploy --> Verify --> E2E --> Stage --> Approval
+    Branch -->|dev| Deploy --> Verify --> Smoke --> E2E --> Stage --> Approval
     Branch -->|main| Status
     Approval -->|Aprobada| Prod --> Record --> Status
     Approval -->|Rechazada| Status
@@ -149,6 +154,7 @@ flowchart TD
     Publish -. fallo .-> Failure
     Deploy -. fallo .-> Failure
     Verify -. fallo .-> Failure
+    Smoke -. fallo .-> Failure
     E2E -. fallo .-> Failure
     Stage -. fallo .-> Failure
     Prod -. fallo .-> Failure
@@ -220,12 +226,12 @@ host.
 
 ## Ejecutar el pipeline
 
-- **Automáticamente:** haz push a cualquier rama o abre/actualiza un PR. El build comienza en
+- **Automáticamente:** haz push a `main` o `dev`, o abre/actualiza un PR. El build comienza en
   pocos segundos.
 - **Manualmente:** abre el job `circleguard`, selecciona la rama o el PR y haz clic en
   **Build Now**.
 - **Reescanear ramas:** en el job `circleguard` haz clic en **Scan Repository Now** (útil
-  después de crear una rama si el webhook no llegó).
+  después de crear una rama `main`/`dev` o si el webhook no llegó).
 
 ## Leer los resultados
 
