@@ -49,9 +49,11 @@ export class AccessPage {
           ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
       }, 50);
-      const stream = (canvas as HTMLCanvasElement & { captureStream(fps?: number): MediaStream }).captureStream(30);
+      // A new stream on every call: expo-camera stops and removes the tracks of the previous one.
+      const newStream = (): MediaStream =>
+        (canvas as HTMLCanvasElement & { captureStream(fps?: number): MediaStream }).captureStream(30);
       const fakeMediaDevices = {
-        getUserMedia: async () => stream,
+        getUserMedia: async () => newStream(),
         enumerateDevices: async () => [
           { deviceId: 'fake-camera', kind: 'videoinput', label: 'Fake camera', groupId: 'fake', toJSON() { return this; } },
         ],
