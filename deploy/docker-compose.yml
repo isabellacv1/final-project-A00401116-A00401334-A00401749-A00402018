@@ -1,0 +1,151 @@
+# Application layer for DEPLOYMENT: pulls the images published by the pipeline
+# from the Nexus registry instead of building them on the target host.
+#
+# It is combined with the infrastructure file on the target host:
+#   docker compose -f docker-compose.dev.yml -f deploy/docker-compose.yml up -d --wait
+#
+# Configuration is external, never hardcoded:
+#   REGISTRY, VERSION                -> written by the deploy step (from the build)
+#   SPRING_PROFILES_ACTIVE, WEB_HOST -> deploy/environments/<environment>.env
+#
+# Inside the network the services reach each other by service name
+# (postgres, neo4j, redis, kafka, openldap, identity, ...).
+
+services:
+  auth:
+    image: ${REGISTRY}/circleguard/auth-service:${VERSION}
+    container_name: circleguard-auth-service
+    ports:
+      - "8180:8180"
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/circleguard_auth
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: password
+      IDENTITY_API_URL: http://identity:8083
+      SPRING_LDAP_URLS: ldap://openldap:389
+      SPRING_LDAP_BASE: dc=circleguard,dc=edu
+      SPRING_LDAP_USERNAME: cn=admin,dc=circleguard,dc=edu
+      SPRING_LDAP_PASSWORD: admin
+      # qr.expiration is read as milliseconds; without this override the
+      # generated token lives 300 ms and the gateway sees it already expired.
+      QR_EXPIRATION: 60000
+    networks:
+      - circleguard-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      identity:
+        condition: service_healthy
+      openldap:
+        condition: service_healthy
+
+  identity:
+    image: ${REGISTRY}/circleguard/identity-service:${VERSION}
+    container_name: circleguard-identity-service
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/circleguard_identity
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    networks:
+      - circleguard-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  promotion:
+    image: ${REGISTRY}/circleguard/promotion-service:${VERSION}
+    container_name: circleguard-promotion-service
+    ports:
+      - "8088:8088"
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/circleguard_promotion
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_NEO4J_URI: bolt://neo4j:7687
+      SPRING_NEO4J_AUTHENTICATION_USERNAME: neo4j
+      SPRING_NEO4J_AUTHENTICATION_PASSWORD: password
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    networks:
+      - circleguard-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  form:
+    image: ${REGISTRY}/circleguard/form-service:${VERSION}
+    container_name: circleguard-form-service
+    ports:
+      - "8086:8086"
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/circleguard_form
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    networks:
+      - circleguard-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  gateway:
+    image: ${REGISTRY}/circleguard/gateway-service:${VERSION}
+    container_name: circleguard-gateway-service
+    ports:
+      - "8087:8087"
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+    networks:
+      - circleguard-net
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  web:
+    image: ${REGISTRY}/circleguard/web:${VERSION}
+    container_name: circleguard-web
+    # Published on 8081 because the services' CORS policy only accepts
+    # browser requests from http://localhost:8081 (and :8080).
+    ports:
+      - "8081:8080"
+    environment:
+      # These URLs are used by the browser, not by the container, so they point
+      # at the host published ports. WEB_HOST comes from the environment file.
+      AUTH_BASE_URL: http://${WEB_HOST:-localhost}:8180
+      IDENTITY_BASE_URL: http://${WEB_HOST:-localhost}:8083
+      FORM_BASE_URL: http://${WEB_HOST:-localhost}:8086
+      GATEWAY_BASE_URL: http://${WEB_HOST:-localhost}:8087
+      PROMOTION_BASE_URL: http://${WEB_HOST:-localhost}:8088
+    networks:
+      - circleguard-net
+    depends_on:
+      auth:
+        condition: service_started
+      identity:
+        condition: service_started
+      promotion:
+        condition: service_started
+      form:
+        condition: service_started
+      gateway:
+        condition: service_started

@@ -57,3 +57,6 @@ services/*/uploads/
 # Local environment files with credentials (never commit)
 scripts/infrastructure.env
 infra/config-as-code/.env
+
+# Temporary file written by the deploy step of the shared library
+deploy-env-remote.env

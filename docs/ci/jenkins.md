@@ -27,6 +27,8 @@ circleguardPipeline(
     integrationTests: true,
     sonar: false,
     publish: true,
+    deploy: true,
+    environment: 'dev',
     discordCredentialsId: 'discord-webhook-url'
 )
 ```
@@ -91,6 +93,13 @@ smee.io channel ──► smee-client container ──► Jenkins /github-webhoo
 | Integration tests | `./gradlew integrationTest --continue` | 30 min |
 | SonarQube | analysis + quality gate | off (`sonar: false`) |
 | Publish images | `docker build` + `docker push` to Nexus | 40 min (`publish: true`) |
+| Deploy | SSH to the environment, `docker compose pull` + `up -d --wait` | 20 min (`deploy: true`, branch in `deployBranches`) |
+| Verify deployment | HTTP check of the six components with retries | 15 min (`deploy: true`) |
+
+The deployment pulls the images published by the same build (semantic version, never `latest`)
+from `100.31.132.57:8082` and reads the environment configuration from
+[`deploy/environments`](../../deploy/environments). Only the `dev` branch deploys automatically;
+`stage` and `prod` are promoted in the version promotion flow. See [`deploy/README.md`](../../deploy/README.md).
 
 After every run, even if a stage fails, Jenkins publishes the JUnit results and archives the test and
 JaCoCo reports. Performance benchmarks are not part of the pipeline; run them with
