@@ -36,6 +36,33 @@ export class AccessPage {
   async useFakeQrScanner(qrValue: string): Promise<void> {
     // Simulate the camera; QR validation still uses the real gateway.
     await this.page.addInitScript((value) => {
+      // Synthetic camera stream: in CI there is no real camera and the scanner only runs the
+      // detector once the <video> has frames, so a canvas stream is returned by getUserMedia.
+      const canvas = document.createElement('canvas');
+      canvas.width = 640;
+      canvas.height = 480;
+      const ctx = canvas.getContext('2d');
+      let tick = 0;
+      setInterval(() => {
+        if (ctx) {
+          ctx.fillStyle = tick++ % 2 ? '#222222' : '#333333';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+      }, 50);
+      // A new stream on every call: expo-camera stops and removes the tracks of the previous one.
+      const newStream = (): MediaStream =>
+        (canvas as HTMLCanvasElement & { captureStream(fps?: number): MediaStream }).captureStream(30);
+      const fakeMediaDevices = {
+        getUserMedia: async () => newStream(),
+        enumerateDevices: async () => [
+          { deviceId: 'fake-camera', kind: 'videoinput', label: 'Fake camera', groupId: 'fake', toJSON() { return this; } },
+        ],
+        getSupportedConstraints: () => ({ facingMode: true, width: true, height: true, deviceId: true }),
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+      };
+      Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: fakeMediaDevices });
+
       class FakeBarcodeDetector {
         static getSupportedFormats(): Promise<string[]> {
           return Promise.resolve(['qr_code']);
