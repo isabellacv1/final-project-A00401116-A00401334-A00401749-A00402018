@@ -91,10 +91,37 @@ smee.io channel ──► smee-client container ──► Jenkins /github-webhoo
 | Build | `./gradlew assemble` | 30 min |
 | Tests | `./gradlew test --continue` | 45 min |
 | Integration tests | `./gradlew integrationTest --continue` | 30 min |
-| SonarQube | analysis + quality gate | off (`sonar: false`) |
+| SonarQube | analysis + quality gate | on (`sonar: true`) |
 | Publish images | `docker build` + `docker push` to Nexus | 40 min (`publish: true`) |
 | Deploy | SSH to the environment, `docker compose pull` + `up -d --wait` | 20 min (`deploy: true`, branch in `deployBranches`) |
 | Verify deployment | HTTP check of the six components with retries | 15 min (`deploy: true`) |
+| E2E tests | Playwright in a container against the deployed `dev` | 20 min (`e2e: true`) |
+| Promote to stage | Deploys the **same version** to `stage` and verifies it | 240 min (`promote: true`) |
+| Promote to prod | Same, but always behind a manual approval (`input`) | 240 min (`promote: true`) |
+
+### Version promotion (HU-14)
+
+```
+push dev ─► Build ─► Tests ─► Integration ─► SonarQube ─► Publish images
+      └► Deploy dev ─► Verify dev ─► E2E tests
+                                │
+                                ▼  (only if every validation above passed)
+                         Promote to stage   ← automatic, same image version
+                                │
+                                ▼
+                         Promote to prod    ← manual `input` approval
+                                │
+                                ▼
+                  promotion-record.txt (archived with the build)
+```
+
+- **Conditions:** a promotion is only reached when build, unit tests, integration tests, the
+  deployment of the previous environment and the E2E tests are green; `Promote to prod` also
+  requires a human approval that Jenkins records in the build log.
+- **Identifiable version:** every promotion deploys `env.IMAGE_VERSION`, the semantic version
+  published by this same build (never `latest`).
+- **Evidence:** each promotion appends to `promotion-record.txt` (version, route, approver,
+  timestamp and build URL) and the file is archived as a build artifact.
 
 The deployment pulls the images published by the same build (semantic version, never `latest`)
 from `100.31.132.57:8082` and reads the environment configuration from

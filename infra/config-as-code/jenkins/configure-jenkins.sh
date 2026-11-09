@@ -204,6 +204,17 @@ else
     warn "falta DISCORD_WEBHOOK_URL en .env -> se omite 'discord-webhook-url'"
 fi
 
+# Usuario de la aplicación que usan las pruebas E2E (Playwright) — HU-14.
+E2E_USERNAME="${E2E_USERNAME:-}"
+E2E_PASSWORD="${E2E_PASSWORD:-}"
+if [[ -n "${E2E_USERNAME}" && -n "${E2E_PASSWORD}" && "${E2E_PASSWORD}" != "REEMPLAZAR" ]]; then
+    ensure_credential userpass "e2e-credential" \
+        username "${E2E_USERNAME}" password "${E2E_PASSWORD}" \
+        description "Usuario de la aplicación para las pruebas E2E (Playwright)"
+else
+    warn "falta E2E_USERNAME / E2E_PASSWORD en .env -> se omite 'e2e-credential'"
+fi
+
 # Las llaves SSH NO se automatizan a propósito: es una decisión de seguridad
 # (el secreto más sensible vive solo en el admin de Jenkins y en ~/.ssh del operador).
 echo "  [MANUAL]  ssh-deploy-dev / ssh-deploy-stage / ssh-deploy-prod"
