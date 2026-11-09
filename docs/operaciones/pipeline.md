@@ -1,4 +1,4 @@
-# Pipeline de CI/CD (Jenkins)
+# Pipeline de CI/CD (Jenkins) 
 
 Este documento explica cómo funciona Jenkins en CircleGuard y qué ejecuta en cada build.
 El despliegue, las imágenes y la promoción se detallan en [`despliegue.md`](despliegue.md);
