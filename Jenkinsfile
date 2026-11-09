@@ -4,7 +4,10 @@
 
 circleguardPipeline(
     integrationTests: true,
-    sonar: false,
+    // SonarQube analysis + quality gate (project CircleGuard)
+    sonar: true,
+    sonarProjectKey: 'CircleGuard',
+    // Pushes the images to the Nexus docker-hosted registry from dev and main
     publish: true,
     // HU-13: deploy the published images to the dev environment and verify
     // that every component is available (stage/promotion come in the next HU).

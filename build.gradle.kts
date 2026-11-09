@@ -4,6 +4,16 @@ plugins {
     kotlin("jvm") version "1.9.24" apply false
     kotlin("plugin.spring") version "1.9.24" apply false
     kotlin("plugin.jpa") version "1.9.24" apply false
+    id("org.sonarqube") version "6.2.0.5505"
+}
+
+// SonarQube analysis (run by the CI pipeline with ./gradlew sonar).
+// Server URL and token come from Jenkins; coverage comes from the JaCoCo XML reports.
+sonar {
+    properties {
+        property("sonar.projectKey", "CircleGuard")
+        property("sonar.projectName", "CircleGuard")
+    }
 }
 
 allprojects {
