@@ -86,7 +86,7 @@ CircleGuard follows a **Microservice Architecture** built on a **Hybrid Data Mod
 
 ## Run Everything with Docker Compose
 
-The whole platform (middleware, the five core services and the web app) can be started with one command. Only Docker (with Compose v2) is required — no Java or Node on the host.
+The whole platform (middleware, the eight services and the web app) can be started with one command. Only Docker (with Compose v2) is required — no Java or Node on the host.
 
 ```bash
 docker compose -f docker-compose.dev.yml -f docker-compose.app.yml up -d --build
@@ -95,7 +95,7 @@ docker compose -f docker-compose.dev.yml -f docker-compose.app.yml up -d --build
 | File | Contents |
 |:---|:---|
 | `docker-compose.dev.yml` | Middleware: PostgreSQL, Neo4j, Zookeeper, Kafka, Redis, OpenLDAP (with healthchecks), the `circleguard-net` network and the `pgdata` / `neo4jdata` volumes. |
-| `docker-compose.app.yml` | auth, identity, promotion, form, gateway and the web app, built from their Dockerfiles. |
+| `docker-compose.app.yml` | auth, identity, promotion, form, gateway, notification, dashboard, file and the web app, built from their Dockerfiles, and the `fileuploads` volume. |
 
 The first build takes a few minutes. Services start in dependency order: each one waits until its databases / broker report healthy. Check progress with:
 ```bash
@@ -111,6 +111,9 @@ Everything is ready when all containers show `(healthy)`.
 | Form service | http://localhost:8086 |
 | Gateway service | http://localhost:8087 |
 | Promotion service | http://localhost:8088 |
+| Notification service | http://localhost:8082 |
+| Dashboard service | http://localhost:8084 |
+| File service | http://localhost:8085 |
 | Neo4j browser | http://localhost:7474 |
 
 Test users (password `password`): `super_admin`, `staff_guard`, `health_user`.
