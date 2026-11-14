@@ -7,7 +7,7 @@ está en [`deploy/README.md`](../../deploy/README.md).
 
 ## Qué se despliega
 
-El compose de despliegue (`deploy/docker-compose.yml`) levanta seis componentes:
+El compose de despliegue (`deploy/docker-compose.yml`) levanta nueve componentes:
 
 | Componente | Imagen | Puerto publicado | Dockerfile |
 |------------|--------|------------------|------------|
@@ -16,16 +16,24 @@ El compose de despliegue (`deploy/docker-compose.yml`) levanta seis componentes:
 | Promotion | `circleguard/promotion-service` | 8088 | `services/circleguard-promotion-service/Dockerfile` |
 | Form | `circleguard/form-service` | 8086 | `services/circleguard-form-service/Dockerfile` |
 | Gateway | `circleguard/gateway-service` | 8087 | `services/circleguard-gateway-service/Dockerfile` |
+| Notification | `circleguard/notification-service` | 8082 | `services/circleguard-notification-service/Dockerfile` |
+| Dashboard | `circleguard/dashboard-service` | 8084 | `services/circleguard-dashboard-service/Dockerfile` |
+| File | `circleguard/file-service` | 8085 | `services/circleguard-file-service/Dockerfile` |
 | Web | `circleguard/web` | 8081 → 8080 | `mobile/Dockerfile` |
 
-`notification`, `dashboard` y `file` existen en el monorepo pero **no** tienen Dockerfile ni
-forman parte del compose de despliegue.
+Configuración de los servicios agregados en la Parte 2:
+
+| Servicio | Depende de | Variables principales |
+|----------|------------|-----------------------|
+| Notification | Kafka | `SPRING_KAFKA_BOOTSTRAP_SERVERS`, `AUTH_API_URL`, `IDENTITY_API_URL`. Los canales externos (SMTP, Twilio, Gotify, LMS) usan los valores por defecto de desarrollo. |
+| Dashboard | PostgreSQL (`circleguard_dashboard`, creada por `init-db.sql`) | `SPRING_DATASOURCE_*`, `CIRCLEGUARD_PROMOTION_SERVICE_URL`. |
+| File | — | Guarda los archivos en `/app/uploads`, montado sobre el volumen `fileuploads` para que no se pierdan al recrear el contenedor. |
 
 ## Imágenes Docker
 
 ### Servicios Spring Boot
 
-Los cinco Dockerfiles de `services/` siguen el mismo patrón de dos etapas:
+Los ocho Dockerfiles de `services/` siguen el mismo patrón de dos etapas:
 
 1. **Build:** `eclipse-temurin:21.0.8_9-jdk-jammy`. Copia `gradlew`, `gradle/`,
    `settings.gradle.kts`, `build.gradle.kts` y `services/`, y ejecuta
@@ -37,6 +45,10 @@ Los cinco Dockerfiles de `services/` siguen el mismo patrón de dos etapas:
 
 Cada imagen declara `EXPOSE` en su puerto y un `HEALTHCHECK` que abre una conexión TCP
 contra `127.0.0.1:<puerto>` usando `bash` (el JRE base lo incluye).
+
+El Dockerfile de `file` además crea `/app/uploads` con dueño `app`: el servicio crea ese
+directorio al arrancar y, como `/app` pertenece a root, el usuario sin privilegios no podría
+crearlo.
 
 ### App web
 
@@ -143,7 +155,7 @@ por SSH:
 Los dos compose se combinan:
 
 - `docker-compose.dev.yml` aporta el middleware: PostgreSQL, Neo4j, Zookeeper, Kafka, Redis
-  y OpenLDAP, con sus healthchecks, la red `circleguard-net` y los volúmenes.
+  y OpenLDAP, con sus healthchecks, la red `circleguard-net` y los volúmenes de datos.
 - `deploy/docker-compose.yml` aporta la capa de aplicación y consume las imágenes
   `${REGISTRY}/circleguard/*:${VERSION}`.
 

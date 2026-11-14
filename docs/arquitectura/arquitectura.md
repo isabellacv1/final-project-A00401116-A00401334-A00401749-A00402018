@@ -60,5 +60,4 @@ flowchart LR
 
 En desarrollo, `docker-compose.dev.yml` define PostgreSQL, Neo4j, Redis, Kafka,
 Zookeeper y OpenLDAP. `docker-compose.app.yml` incluye Auth, Identity, Promotion,
-Form, Gateway y la aplicación web. Dashboard, File y Notification están en el
-código, pero no forman parte de ese archivo Compose.
+Form, Gateway, Notification, Dashboard, File y la aplicación web.
