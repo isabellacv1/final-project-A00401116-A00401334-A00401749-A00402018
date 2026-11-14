@@ -32,13 +32,19 @@ circleguardPipeline(
     sonar: true,
     sonarProjectKey: 'CircleGuard',
     publish: true,
+    images: [ /* las nueve imágenes: name, dockerfile, context */ ],
     deploy: true,
     environment: 'dev',
+    services: [ /* los nueve componentes a verificar: name, port, path */ ],
     e2e: true,
     promote: true,
     discordCredentialsId: 'discord-webhook-url'
 )
 ```
+
+`images` y `services` se declaran en el `Jenkinsfile` porque los valores por defecto de la
+librería solo incluyen los seis componentes de la Parte 1. Al agregar un servicio hay que
+añadirlo en ambas listas y en `deploy/docker-compose.yml`.
 
 Los parámetros y pasos disponibles están documentados en el README de la librería. Para
 conservar el registro cuando se reconstruye Jenkins, agrega el bloque `globalLibraries` de ese
@@ -105,7 +111,7 @@ feature, que Jenkins empezaba a construir al cerrarse el PR. Con el filtro solo 
 | SonarQube | análisis + quality gate | con `sonar: true` |
 | Publicar imágenes | `docker build` + `docker push` a Nexus | 40 min (`publish: true`) |
 | Despliegue | SSH al entorno, `docker compose pull` + `up -d --wait` | 20 min (`deploy: true`, rama en `deployBranches`) |
-| Verificar despliegue | Comprobación HTTP de los seis componentes con reintentos | 15 min (`deploy: true`) |
+| Verificar despliegue | Comprobación HTTP de los nueve componentes con reintentos | 15 min (`deploy: true`) |
 | Smoke tests | Comprobaciones HTTP funcionales contra el host destino | 10 min (`deploy: true`) |
 | Pruebas E2E | Playwright en un contenedor contra `dev` desplegado | 20 min (`e2e: true`) |
 | Promover a stage | Despliega la **misma versión** a `stage` y la verifica | 240 min (`promote: true`) |
