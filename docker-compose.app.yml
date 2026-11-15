@@ -1,4 +1,4 @@
-# Application layer for CircleGuard: the five core services and the web app.
+# Application layer for CircleGuard: the eight services and the web app.
 #
 # Run together with the infrastructure file:
 #   docker compose -f docker-compose.dev.yml -f docker-compose.app.yml up -d --build
@@ -128,6 +128,56 @@ services:
       redis:
         condition: service_healthy
 
+  notification:
+    image: circleguard/notification-service:1.0.0
+    build:
+      context: .
+      dockerfile: services/circleguard-notification-service/Dockerfile
+    container_name: circleguard-notification-service
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      AUTH_API_URL: http://auth:8180
+      IDENTITY_API_URL: http://identity:8083
+    networks:
+      - circleguard-net
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  file:
+    image: circleguard/file-service:1.0.0
+    build:
+      context: .
+      dockerfile: services/circleguard-file-service/Dockerfile
+    container_name: circleguard-file-service
+    ports:
+      - "8085:8085"
+    volumes:
+      - fileuploads:/app/uploads
+    networks:
+      - circleguard-net
+
+  dashboard:
+    image: circleguard/dashboard-service:1.0.0
+    build:
+      context: .
+      dockerfile: services/circleguard-dashboard-service/Dockerfile
+    container_name: circleguard-dashboard-service
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/circleguard_dashboard
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: password
+      CIRCLEGUARD_PROMOTION_SERVICE_URL: http://promotion:8088
+    networks:
+      - circleguard-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   web:
     image: circleguard/web:1.0.0
     build:
@@ -146,6 +196,9 @@ services:
       FORM_BASE_URL: http://localhost:8086
       GATEWAY_BASE_URL: http://localhost:8087
       PROMOTION_BASE_URL: http://localhost:8088
+      NOTIFICATION_BASE_URL: http://localhost:8082
+      FILE_BASE_URL: http://localhost:8085
+      DASHBOARD_BASE_URL: http://localhost:8084
     networks:
       - circleguard-net
     depends_on:
@@ -159,3 +212,13 @@ services:
         condition: service_started
       gateway:
         condition: service_started
+      notification:
+        condition: service_started
+      file:
+        condition: service_started
+      dashboard:
+        condition: service_started
+
+# Uploaded files of the file service (merged with the volumes of the infrastructure file).
+volumes:
+  fileuploads:

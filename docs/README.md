@@ -26,7 +26,7 @@ prueba y cómo se construye y despliega.
 
 ## Estado del proyecto
 
-- **MVP funcional:** los cinco servicios núcleo y la app web se ejecutan con Docker Compose.
+- **MVP funcional:** los ocho servicios y la app web se ejecutan con Docker Compose.
 - **CI/CD:** Jenkins construye, prueba, analiza con SonarQube, publica imágenes en Nexus y
   despliega en AWS.
 - **Versionado automático:** semantic-release calcula la versión a partir de los commits
@@ -109,12 +109,12 @@ El diagrama completo, con las dependencias de datos y mensajería, está en
 | `form-service` | 8086 | Cuestionarios y encuestas de salud | Sí |
 | `gateway-service` | 8087 | Validación del QR en portería | Sí |
 | `web` (Expo) | 8081 | Cliente web servido por nginx | Sí |
-| `notification-service` | 8082 | Notificaciones multicanal | No |
-| `dashboard-service` | 8084 | Analítica con k-anonimato | No |
-| `file-service` | 8085 | Almacenamiento de archivos | No |
+| `notification-service` | 8082 | Notificaciones multicanal | Sí |
+| `dashboard-service` | 8084 | Analítica con k-anonimato | Sí |
+| `file-service` | 8085 | Almacenamiento de archivos | Sí |
 
-> El despliegue actual cubre los cinco servicios núcleo y la app web. `notification`,
-> `dashboard` y `file` existen en el monorepo.
+> El despliegue cubre los ocho servicios y la app web. `notification`, `dashboard` y `file`
+> se agregaron en la Parte 2.
 
 ## Stack
 
@@ -131,8 +131,8 @@ El diagrama completo, con las dependencias de datos y mensajería, está en
 
 ## Ejecución local
 
-Solo se necesita Docker con Compose v2. El comando levanta el middleware, los cinco
-servicios núcleo y la app web:
+Solo se necesita Docker con Compose v2. El comando levanta el middleware, los ocho
+servicios y la app web:
 
 ```bash
 docker compose -f docker-compose.dev.yml -f docker-compose.app.yml up -d --build
@@ -283,7 +283,6 @@ push a dev ─► Build ─► Tests ─► Integración ─► SonarQube ─►
 - Los servicios no exponen OpenAPI/Swagger.
 - Los secretos de desarrollo (`jwt.secret`, `qr.secret`, `vault.secret`, credenciales de
   bases de datos) están en texto plano en el repositorio; son solo para desarrollo local.
-- `notification`, `dashboard` y `file` no forman parte del despliegue actual.
 
 ## Estructura del repositorio
 

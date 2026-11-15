@@ -27,7 +27,7 @@ Jenkins (branch dev) ── Publish images ──► Nexus registry :8082
 
 | File | Purpose |
 |------|---------|
-| `docker-compose.yml` | Application layer: the six components pulling `${REGISTRY}/circleguard/*:${VERSION}`. |
+| `docker-compose.yml` | Application layer: the nine components pulling `${REGISTRY}/circleguard/*:${VERSION}`. |
 | `environments/dev.env` | `dev` environment: host, registry, Spring profile, web host. |
 | `environments/stage.env` | `stage` environment (same keys). |
 | `environments/prod.env` | `prod` environment (same keys). |
