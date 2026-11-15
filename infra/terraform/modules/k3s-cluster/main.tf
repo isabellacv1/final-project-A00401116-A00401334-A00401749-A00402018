@@ -36,11 +36,11 @@ locals {
 
   # Campos de plantilla comunes a server y agent (sin secretos).
   template_common = {
-    env                  = var.env
-    region               = var.region
-    k3s_version          = var.k3s_version
-    registry_endpoint    = var.registry_endpoint
-    registry_scheme      = var.registry_scheme
+    env               = var.env
+    region            = var.region
+    k3s_version       = var.k3s_version
+    registry_endpoint = var.registry_endpoint
+    registry_scheme   = var.registry_scheme
     # Vacío fuera de prod: el server omite la publicación del token y, con él,
     # cualquier interacción (o instalación) de AWS CLI en dev/stage.
     token_parameter_name = var.token_parameter_name == null ? "" : var.token_parameter_name

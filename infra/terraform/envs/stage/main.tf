@@ -34,8 +34,8 @@ module "registry" {
 module "security" {
   source = "../../modules/security"
 
-  env    = local.environment
-  vpc_id = module.networks.vpc_id
+  env      = local.environment
+  vpc_id   = module.networks.vpc_id
   vpc_cidr = module.networks.vpc_cidr
 
   # Nexus vive en cg-devops: un único SG cumple a la vez el origen de
@@ -56,7 +56,7 @@ module "iam" {
   region = module.shared.region
   # STAGE no usa Parameter Store: token_parameter_name se omite (default null)
   # y este estado no recibe ningún permiso de parámetros.
-  tags   = module.shared.common_tags
+  tags = module.shared.common_tags
 }
 
 # --- Snapshots EBS (B4) -------------------------------------------------------
@@ -67,16 +67,16 @@ module "storage" {
   dlm_role_arn = module.iam.dlm_role_arn
   # schedule_time="03:00" (UTC) y retention_count=7: valores aprobados, se
   # mantienen como defaults del módulo.
-  tags         = module.shared.common_tags
+  tags = module.shared.common_tags
 }
 
 # --- Nodo(s) k3s + bootstrap (B4) --------------------------------------------
 module "k3s-cluster" {
   source = "../../modules/k3s-cluster"
 
-  env        = local.environment
-  region     = module.shared.region
-  ami_id     = module.shared.ami_id
+  env           = local.environment
+  region        = module.shared.region
+  ami_id        = module.shared.ami_id
   instance_type = module.shared.instance_type
   k3s_version   = module.shared.k3s_version
 

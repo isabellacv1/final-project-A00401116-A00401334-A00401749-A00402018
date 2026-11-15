@@ -35,11 +35,11 @@ resource "aws_dlm_lifecycle_policy" "root_snapshots" {
   # anti confused-deputy; politica AWSDataLifecycleManagerServiceRole (snapshots).
   execution_role_arn = var.dlm_role_arn
   state              = "ENABLED"
-  # Por defecto EBS_SNAPSHOT_MANAGEMENT (politica de SNAPSHOT de volumenes);
-  # NO IMAGE_MANAGEMENT (esa seria la de AMI, con otra politica IAM).
-  policy_type = "EBS_SNAPSHOT_MANAGEMENT"
 
   policy_details {
+    # Por defecto EBS_SNAPSHOT_MANAGEMENT (politica de SNAPSHOT de volumenes);
+    # NO IMAGE_MANAGEMENT (esa seria la de AMI, con otra politica IAM).
+    policy_type    = "EBS_SNAPSHOT_MANAGEMENT"
     resource_types = ["VOLUME"]
     target_tags    = local.snapshot_target_tags
 

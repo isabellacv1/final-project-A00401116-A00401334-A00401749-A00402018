@@ -173,15 +173,15 @@ resource "aws_vpc_security_group_ingress_rule" "server_api_devops" {
 # 80/443 del server: publicos en prod (usuarios via Ingress); en dev/stage
 # unicamente desde cg-devops (E2E y smoke tests) - decision A aprobada.
 resource "aws_vpc_security_group_ingress_rule" "server_web" {
-  for_each = toset([80, 443])
+  for_each = toset(["80", "443"])
 
   security_group_id = aws_security_group.server.id
   description       = local.is_prod ? "Entrada publica de usuarios via Ingress (Traefik)" : "Entrada de usuario solo desde cg-devops (E2E y smoke tests)"
   ip_protocol       = "tcp"
-  from_port         = each.value
-  to_port           = each.value
+  from_port         = tonumber(each.value)
+  to_port           = tonumber(each.value)
 
-  cidr_ipv4                 = local.is_prod ? "0.0.0.0/0" : null
+  cidr_ipv4                    = local.is_prod ? "0.0.0.0/0" : null
   referenced_security_group_id = local.is_prod ? null : var.devops_security_group_id
 }
 

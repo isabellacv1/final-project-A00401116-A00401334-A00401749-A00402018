@@ -18,7 +18,7 @@
 
 data "aws_vpc" "circleguard" {
   filter {
-    name = "tag:Name"
+    name   = "tag:Name"
     values = [var.vpc_name]
   }
 
@@ -34,7 +34,7 @@ data "aws_subnet" "by_name" {
   for_each = var.subnet_names
 
   filter {
-    name = "tag:Name"
+    name   = "tag:Name"
     values = [each.value]
   }
 
@@ -46,7 +46,7 @@ data "aws_subnet" "by_name" {
 
 data "aws_route_table" "public" {
   filter {
-    name = "tag:Name"
+    name   = "tag:Name"
     values = [var.route_table_name]
   }
 

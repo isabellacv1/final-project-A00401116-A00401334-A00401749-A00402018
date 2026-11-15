@@ -93,7 +93,7 @@ variable "root_volume_size" {
 variable "agent_count" {
   description = "Nodos agent adicionales (0 en dev/stage,1 en prod). El server es siempre1."
   type        = number
-  default     =0
+  default     = 0
 
   validation {
     condition     = contains([0, 1], var.agent_count)
