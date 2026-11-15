@@ -60,3 +60,20 @@ infra/config-as-code/.env
 
 # Temporary file written by the deploy step of the shared library
 deploy-env-remote.env
+
+# Terraform (HU 1: estado local; el backend remoto con bloqueo llega en HU 2)
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+# A propósito se versionan: .terraform.lock.hcl y terraform.tfvars
+# (los tfvars de infra/terraform/envs/ solo llevan tamaños, contadores e
+#  identificadores públicos; nunca secretos).
