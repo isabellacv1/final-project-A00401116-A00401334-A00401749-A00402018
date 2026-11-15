@@ -30,7 +30,7 @@ locals {
 }
 
 resource "aws_dlm_lifecycle_policy" "root_snapshots" {
-  description = "CircleGuard HU1: snapshots diarios 03:00 UTC de volumenes raices k3s ${var.env} (retencion ${var.retention_count})"
+  description = "CircleGuard HU1 snapshots diarios a las0300 UTC volumenes raices k3s ${var.env} retencion ${var.retention_count}"
   # Rol creado por modules/iam (B3). Trust dlm.amazonaws.com + condiciones
   # anti confused-deputy; politica AWSDataLifecycleManagerServiceRole (snapshots).
   execution_role_arn = var.dlm_role_arn
