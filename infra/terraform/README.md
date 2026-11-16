@@ -59,7 +59,7 @@ flowchart TB
   dev & stage & prod --> shared & networks & registry & security & iam & storage & k3s
 ```
 
-| Ambiente | Topología (aprobada) | Parameter Store |
+| Ambiente | Topología | Parameter Store |
 |---|---|---|
 | **DEV** | 1 nodo server, sin agent | no usa |
 | **STAGE** | 1 nodo server, sin agent | no usa |
@@ -74,7 +74,7 @@ infra/terraform/
 ├── README.md                     # este documento
 ├── bootstrap/
 │   └── preflight.sh              # verificación previa de solo lectura (B1)
-├── shared/                       # constantes aprobadas, sin recursos (B1)
+├── shared/                       # constantes compartidas, sin recursos (B1)
 │   ├── main.tf                   #   region, ami, instance_type, k3s_version, tags, token name
 │   └── outputs.tf                #   se leen como module.shared.<salida>
 ├── modules/
@@ -165,7 +165,7 @@ m7i-flex.large` · `k3s_version = v1.37.2+k3s1` · `ssh_user = ubuntu` ·
 `common_tags = {Project=circleguard, ManagedBy=terraform, Part=2, HU=HU-1}` ·
 `token_parameter_name = /circleguard/k3s/prod-join-token`.
 
-### 6.3 Valores por defecto de módulos (aprobados, no se repiten en los roots)
+### 6.3 Valores por defecto de módulos (definidos en el módulo, no se repiten en los roots)
 
 | Módulo | Default | Valor |
 |---|---|---|
@@ -179,8 +179,8 @@ m7i-flex.large` · `k3s_version = v1.37.2+k3s1` · `ssh_user = ubuntu` ·
 ## 7. Requisitos previos
 
 1. **Terraform `>= 1.6.0, < 2.0.0`** (los módulos usan `check`, *preconditions*,
-   `startswith`, `one()`). No está instalado en esta máquina — instalarlo
-   requiere autorización explícita del equipo.
+   `startswith`, `one()`). Si no está instalado, instalarlo requiere
+   autorización explícita del responsable del entorno.
 2. **Proveedor** `hashicorp/aws ~> 6.72` (se descarga en `init`; la versión
    exacta quedará registrada en `.terraform.lock.hcl`, que debe versionarse).
 3. **Credenciales AWS** con acceso a la cuenta `718875641310`, región
@@ -211,7 +211,7 @@ m7i-flex.large` · `k3s_version = v1.37.2+k3s1` · `ssh_user = ubuntu` ·
   lectura para los `data` sources (`ec2:Describe*`, `sts:GetCallerIdentity`).
 - **Los roles de instancia no usan `AdministratorAccess`**: solo
   `AmazonSSMManagedInstanceCore` (+ en PROD las dos políticas inline de
-  parámetro sobre el ARN exacto). **Sin permisos KMS** (decisión aprobada).
+  parámetro sobre el ARN exacto). **Sin permisos KMS**.
 - **Los nodos** reciben credenciales solo por *instance profile*; el bootstrap
   instala AWS CLI v2 fijado con SHA256 **solo donde Parameter Store se usa**
   (PROD).
@@ -269,8 +269,8 @@ variables, `tfvars` ni en el estado de Terraform (nace dentro de la instancia).
 | **IMDSv2** | `http_tokens = "required"` en las cuatro instancias; cloud-init usa el *token dance* de IMDSv2 |
 | **Cifrado EBS** | gp3 con `encrypted = true` (la cuenta no tiene cifrado por defecto) y `delete_on_termination = true` |
 | **Token de k3s (PROD)** | SecureString en Parameter Store; publicación con `--value file://` (el valor no pasa por argv ni por logs), lectura con `GetParameter --with-decryption` redirigida a fichero `0600`, unión con `--token-file`, sin `set -x`, sin `K3S_TOKEN` en el entorno, temporales limpiados con `trap` |
-| **SSH / acceso** | Solo desde `cg-devops-sg` (decisión2); SSM Session Manager como alternativa preferida |
-| **Registro Nexus** | HTTP sin TLS temporalmente (deuda aceptada): `registries.yaml` declara el endpoint `http://` de la IP privada; sin credenciales en cloud-init ni Terraform |
+| **SSH / acceso** | Solo desde `cg-devops-sg`; SSM Session Manager como alternativa preferida |
+| **Registro Nexus** | HTTP sin TLS temporalmente (deuda documentada): `registries.yaml` declara el endpoint `http://` de la IP privada; sin credenciales en cloud-init ni Terraform |
 | **Secretos en Git** | Escaneo sin coincidencias (`AKIA…`, claves, passwords, tokens); `tfvars` solo contienen `key_name`, `root_volume_size`, `agent_count` |
 
 ---
@@ -289,7 +289,7 @@ SSM; `one(module.registry.security_group_ids)` exige que `cg-devops` tenga
    (cloud-init, k3s, DLM, pulls de Nexus) está **pendiente de verificación**.
 2. **Estado local sin backend** (HU 2 agregará S3 + DynamoDB + lock).
 3. **Una sola AZ** (`us-east-1a`) y **PROD sin HA** de plano de control
-   (1 server + 1 agent): decisiones aceptadas y documentadas.
+   (1 server + 1 agent): limitación conocida y documentada.
 4. **Nexus por HTTP** y **sin pull-through de Docker Hub** (imágenes de Hub van
    directo a internet, permitido por el egress).
 5. **`get.k3s.io`** es un script servido por HTTPS sin fijar (la *versión* de

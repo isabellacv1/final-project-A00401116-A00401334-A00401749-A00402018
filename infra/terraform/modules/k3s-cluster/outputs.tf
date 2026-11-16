@@ -14,7 +14,7 @@ output "server_private_ip" {
 }
 
 output "server_public_ip" {
-  description = "IP pública del server (URL de acceso al Ingress en prod; solo con los SG aprobados)."
+  description = "IP pública del server (URL de acceso al Ingress en prod; expuesta solo según los Security Groups definidos)."
   value       = aws_instance.server.public_ip
 }
 

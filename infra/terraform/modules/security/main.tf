@@ -26,7 +26,7 @@
 #     ("Security groups do not filter traffic destined to and from the
 #      following: Amazon Domain Name Services (DNS) ...")
 #
-# Cuatro SG (nombres aprobados en el diseño):
+# Cuatro SG (nombres definidos en el diseño):
 #   cg-k3s-dev-sg          dev    server único
 #   cg-k3s-stage-sg        stage  server único
 #   cg-k3s-prod-server-sg  prod   server (80/443 públicos)
@@ -36,11 +36,11 @@
 #   - 22 (SSH) y 6443 (kubectl) solo desde cg-devops-sg; SSM es la alternativa
 #     preferida. Nunca hay 6443 público.
 #   - 80/443: públicos SOLO en el server PROD; en dev/stage solo desde
-#     cg-devops-sg (decisión A aprobada).
+#     cg-devops-sg (acceso restringido a cg-devops).
 #   - prod interno: server acepta 6443/udp8472 desde el agent; agent acepta
 #     10250/udp8472 desde el server. Sin NodePorts, sin etcd (2379-2380).
 #
-# Egress (E1..E9 del diseño aprobado): DNS del VPC (E1 declarativa: AWS no
+# Egress (E1..E9 del diseño): DNS del VPC (E1 declarativa: AWS no
 # permite filtrar con Security Groups el tráfico al resolver VPC+2, ver
 # LIMITACIÓN DE AWS en la cabecera de este archivo), 443, 80, 123; Nexus tcp
 # 8082 por REFERENCIA AL SG del registro (module.registry.security_group_ids,
@@ -51,7 +51,7 @@
 locals {
   is_prod = var.env == "prod"
 
-  # Nombres aprobados: dev/stage son de un solo nodo; prod separa server/agent.
+  # Convención de nombres: dev/stage son de un solo nodo; prod separa server/agent.
   server_sg_name = local.is_prod ? "${var.name_prefix}-prod-server-sg" : "${var.name_prefix}-${var.env}-sg"
   agent_sg_name  = "${var.name_prefix}-prod-agent-sg"
 
@@ -171,7 +171,7 @@ resource "aws_vpc_security_group_ingress_rule" "server_api_devops" {
 }
 
 # 80/443 del server: publicos en prod (usuarios via Ingress); en dev/stage
-# unicamente desde cg-devops (E2E y smoke tests) - decision A aprobada.
+# unicamente desde cg-devops (E2E y smoke tests).
 resource "aws_vpc_security_group_ingress_rule" "server_web" {
   for_each = toset(["80", "443"])
 

@@ -22,7 +22,7 @@ output "server_private_ip" {
 }
 
 output "server_public_ip" {
-  description = "IP pública del server (URL del Ingress; solo con los SG aprobados)."
+  description = "IP pública del server (URL del Ingress; expuesta solo según los Security Groups definidos)."
   value       = module.k3s-cluster.server_public_ip
 }
 

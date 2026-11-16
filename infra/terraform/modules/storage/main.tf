@@ -5,14 +5,14 @@
 # Data Lifecycle Manager (DLM):
 #   - Programación: cada24 h a las 03:00 UTC (times = UTC según la API de DLM).
 #   - Retención: 7 snapshots (los más antiguos los elimina el propio DLM).
-#   - Selección por TAGS acordados: Project + Environment + DailySnapshot.
+#   - Selección por TAGS: UN SOLO target tag, Environment = <env>.
 #     Los volúmenes raíz los crea modules/k3s-cluster con esos tags; este
-#     módulo NO recibe IDs de volumen (DIM apunta por tags), por lo que no
+#     módulo NO recibe IDs de volumen (DLM apunta por tags), por lo que no
 #     hay dependencia dura entre módulos.
 #   - Rol de ejecución: el rol DLM del módulo iam (B3), sin modificar.
 #
 # Alcance: solo snapshots de volúmenes raíz. No hay volúmenes de datos
-# adicionales ni almacenamiento persistente de aplicaciones (decisión aprobada).
+# adicionales ni almacenamiento persistente de aplicaciones.
 #
 # Costo (precios oficiales verificados): gp3 $0.08/GB-mes; snapshot $0.05/GB-mes
 # sobre BLOQUES ALMACENADOS (incremental), no sobre el tamaño provisionado.
@@ -20,12 +20,20 @@
 
 locals {
   # Convención de tags de volumen: debe coincidir con root_block_device.tags
-  # de modules/k3s-cluster. "Environment" diferencia los tres ambientes para
-  # que la política de un estado jamás capture volúmenes de otro.
+  # de modules/k3s-cluster.
+  #
+  # UN SOLO target tag por política. AWS DLM evalúa target_tags con semántica
+  # OR ("at least one of the specified target resource tags", ver
+  # docs.aws.amazon.com/ebs/latest/userguide/dlm-elements.html), no con
+  # intersección: con más de un par, cualquier volumen que cumpla uno solo ya
+  # es seleccionado. Como los volúmenes de los tres ambientes comparten
+  # Project=circleguard y DailySnapshot=true, declararlos hacía que cada
+  # política capturara los volúmenes de todos los ambientes. Un único par con
+  # valor único por ambiente (Environment) garantiza la selección exclusiva.
+  # Project y DailySnapshot siguen en los volúmenes como etiquetas de
+  # auditoría; solo dejan de ser criterio de selección.
   snapshot_target_tags = {
-    Project       = lookup(var.tags, "Project", "circleguard")
-    Environment   = var.env
-    DailySnapshot = "true"
+    Environment = var.env
   }
 }
 
@@ -56,11 +64,16 @@ resource "aws_dlm_lifecycle_policy" "root_snapshots" {
         count = var.retention_count
       }
 
-      # Los snapshots heredan los tags del volumen (auditoría por ambiente).
+      # Los snapshots heredan TODOS los tags del volumen (auditoría por
+      # ambiente): con copy_tags = true llegan Environment, Name, Project,
+      # DailySnapshot, ManagedBy, HU y Part. Por eso NO se declara Environment
+      # en tags_to_add: hacerlo duplicaría la clave y la API fallaría con
+      # "Duplicate tag key 'Environment' specified", porque el valor ya viene
+      # copiado desde el volumen. Solo se agrega SnapshotBy, la única
+      # etiqueta propia de DLM.
       copy_tags = true
       tags_to_add = {
-        SnapshotBy  = "dlm"
-        Environment = var.env
+        SnapshotBy = "dlm"
       }
     }
   }

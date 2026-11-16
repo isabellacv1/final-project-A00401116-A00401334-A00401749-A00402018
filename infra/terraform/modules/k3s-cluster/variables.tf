@@ -28,7 +28,7 @@ variable "ami_id" {
 }
 
 variable "instance_type" {
-  description = "Tipo de instancia aprobado (shared.instance_type: m7i-flex.large)."
+  description = "Tipo de instancia (shared.instance_type: m7i-flex.large)."
   type        = string
 }
 
@@ -75,7 +75,7 @@ variable "registry_endpoint" {
 }
 
 variable "registry_scheme" {
-  description = "Esquema del registro (module.registry.registry_scheme): http, decisión aceptada temporalmente."
+  description = "Esquema del registro (module.registry.registry_scheme): http temporal, deuda documentada en el README."
   type        = string
   default     = "http"
 }
@@ -97,7 +97,7 @@ variable "agent_count" {
 
   validation {
     condition     = contains([0, 1], var.agent_count)
-    error_message = "agent_count solo admite0 o1 (topología aprobada)."
+    error_message = "agent_count solo admite 0 o1 (topología: 1 server + 0/1 agent)."
   }
 }
 

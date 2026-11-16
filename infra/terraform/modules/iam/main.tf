@@ -2,14 +2,14 @@
 # Módulo: iam (HU 1)
 #
 # Crea roles e instance profiles NUEVOS, con nombres por ambiente (patrones
-# aprobados en el diseño) para que los tres estados Terraform jamás compitan
+# definidos en el diseño) para que los tres estados Terraform jamás compitan
 # por el mismo recurso IAM:
 #
 #   cg-k3s-<env>-server-role  / cg-k3s-<env>-server-profile   (siempre)
 #   cg-k3s-prod-agent-role    / cg-k3s-prod-agent-profile     (solo prod)
 #   cg-dlm-<env>-role                                           (snapshots)
 #
-# Mínimo privilegio (decisiones aprobadas):
+# Mínimo privilegio:
 #   - Roles de nodo: unicamente AmazonSSMManagedInstanceCore (Session Manager
 #     como acceso preferido; el SSH desde cg-devops es la vía auxiliar).
 #   - Parameter Store EXCLUSIVO de PROD: el server escribe el token de union

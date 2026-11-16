@@ -32,7 +32,7 @@ EXPECTED_VPC_CIDR="10.20.0.0/16"
 EXPECTED_RT_NAME="circleguard-public-rt"
 EXPECTED_SUBNETS="cg-dev-subnet cg-stage-subnet cg-prod-subnet cg-devops-subnet"
 EXPECTED_KEY_PAIRS="cg-dev-key cg-stage-key cg-prod-key"
-NEW_NODES=4                 # 1 dev + 1 stage + 2 prod (decisión aprobada)
+NEW_NODES=4                 # 1 dev + 1 stage + 2 prod
 VCPUS_PER_NODE_DEFAULT=2    # m7i-flex.large = 2 vCPU
 
 PASS_COUNT=0; WARN_COUNT=0; FAIL_COUNT=0
@@ -74,8 +74,8 @@ if command -v terraform >/dev/null 2>&1; then
     TF_VERSION=$(terraform version 2>/dev/null | head -1 | sed 's/^Terraform v//')
     pass "Terraform instalado: v${TF_VERSION}"
 else
-    # Pendiente de autorización explícita: no instala nada este script.
-    warn "Terraform no está instalado (la instalación requiere autorización del equipo)"
+    # No instala nada este script: la instalación requiere permisos del usuario.
+    warn "Terraform no está instalado (requiere instalación manual)"
 fi
 
 if command -v curl >/dev/null 2>&1; then
@@ -186,7 +186,7 @@ if [[ -n "${VPC_ID_ONLY}" ]]; then
     done
     if [[ "${MISSING}" -eq 0 ]]; then
         AZS=$(echo "${SUBNET_IDS}" | cut -f3 | sort -u | tr '\n' ' ')
-        warn "Todas las subredes usan: ${AZS}(limitación de una sola AZ aceptada en el diseño)"
+        warn "Todas las subredes usan: ${AZS}(limitación de una sola AZ en el diseño)"
     fi
 fi
 
