@@ -71,6 +71,7 @@ write_files:
           # Checksum obligatorio: si no coincide, sha256sum falla y "set -euo pipefail" detiene todo.
           echo "$AWSCLI_SHA256  $work/awscliv2.zip" | sha256sum -c -
           python3 -m zipfile -e "$work/awscliv2.zip" "$work/dist"
+          chmod +x "$work/dist/aws/install" "$work/dist/aws/dist/aws" "$work/dist/aws/dist/aws_completer"
           if [ -d "$AWSCLI_INSTALL_DIR" ]; then
               log "actualizando la instalacion oficial $AWSCLI_INSTALL_DIR a v$AWSCLI_VERSION"
               "$work/dist/aws/install" --update \
