@@ -32,7 +32,7 @@ output "subnet_map_public_ip_on_launch" {
 }
 
 output "availability_zones" {
-  description = "Zonas de Disponibilidad distintas usadas por las subredes (hoy: una sola, limitación aceptada)."
+  description = "Zonas de Disponibilidad distintas usadas por las subredes (hoy: una sola, limitación conocida)."
   value       = distinct([for subnet in data.aws_subnet.by_name : subnet.availability_zone])
 }
 

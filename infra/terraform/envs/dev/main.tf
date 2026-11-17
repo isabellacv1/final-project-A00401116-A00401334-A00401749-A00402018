@@ -1,7 +1,8 @@
 # Raíz: AMBIENTE DEV (HU 1, B5)
 #
-# Cablea los módulos aprobados B1-B4 sin duplicar lógica y sin backend
-# remoto (el estado local con bloqueo corresponde a HU 2).
+# Cablea los módulos de las capas B1-B4 sin duplicar lógica y sin backend
+# remoto (el estado local con bloqueo es una limitación conocida; el backend
+# S3 con locking se introduce en una HU posterior).
 #
 # Cadena de dependencias:
 #   shared ─┬─ networks ─┬─ security ─┬─ k3s-cluster
@@ -16,7 +17,7 @@ locals {
   environment = "dev"
 }
 
-# --- Constantes aprobadas (B1) ------------------------------------------------
+# --- Constantes (B1) ----------------------------------------------------------
 module "shared" {
   source = "../../shared"
 }
@@ -39,8 +40,8 @@ module "security" {
   vpc_cidr = module.networks.vpc_cidr
 
   # Nexus vive en cg-devops: un único SG cumple a la vez el origen de
-  # SSH/kubectl (decisión2) y el destino del egress tcp 8082 del registro
-  # (decisión B3). one() falla si cg-devops no tiene exactamente un SG.
+  # SSH/kubectl (capa B3) y el destino del egress tcp 8082 del registro
+  # (capa B3). one() falla si cg-devops no tiene exactamente un SG.
   devops_security_group_id   = one(module.registry.security_group_ids)
   registry_security_group_id = one(module.registry.security_group_ids)
   registry_port              = module.registry.registry_port
@@ -65,8 +66,8 @@ module "storage" {
 
   env          = local.environment
   dlm_role_arn = module.iam.dlm_role_arn
-  # schedule_time="03:00" (UTC) y retention_count=7: valores aprobados, se
-  # mantienen como defaults del módulo.
+  # schedule_time="03:00" (UTC) y retention_count=7: valores por defecto del
+  # módulo; se mantienen sin sobrescribir en el root.
   tags = module.shared.common_tags
 }
 
@@ -105,6 +106,6 @@ module "k3s-cluster" {
 check "aws_region_vs_shared" {
   assert {
     condition     = var.aws_region == module.shared.region
-    error_message = "aws_region (var) difiere de shared.region (constante aprobada)."
+    error_message = "aws_region (var) difiere de shared.region (constante única de shared)."
   }
 }

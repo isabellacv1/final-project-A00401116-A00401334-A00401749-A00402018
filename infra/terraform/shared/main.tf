@@ -1,9 +1,9 @@
 # =============================================================================
 # Constantes globales de la HU 1 (Parte 2 - CircleGuard).
 #
-# Este directorio NO crea recursos AWS: centraliza los valores aprobados por
-# el equipo para que los tres estados (envs/dev, envs/stage, envs/prod) los
-# consuman sin duplicarlos. Se usa como módulo:
+# Este directorio NO crea recursos AWS: centraliza los valores compartidos
+# para que los tres estados (envs/dev, envs/stage, envs/prod) los consuman
+# sin duplicarlos. Se usa como módulo:
 #
 #   module "shared" {
 #     source = "../../shared"
@@ -17,7 +17,7 @@
 # =============================================================================
 
 locals {
-  # Región única de la infraestructura (verificada en el diagnóstico).
+  # Región única de la infraestructura.
   region = "us-east-1"
 
   project     = "circleguard"
@@ -31,8 +31,8 @@ locals {
   ami_name = "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-20261108"
 
   # --- Cómputo ------------------------------------------------------------
-  # Tipo aprobado para los cuatro nodos k3s (2 vCPU / 8 GiB). Decisión
-  # establecida por el equipo: no se evalúa ni se propone otro tipo.
+  # Tipo de instancia fijado para los cuatro nodos k3s (2 vCPU / 8 GiB).
+  # No es configurable: todos los nodos usan el mismo tipo.
   instance_type = "m7i-flex.large"
 
   # --- k3s ----------------------------------------------------------------

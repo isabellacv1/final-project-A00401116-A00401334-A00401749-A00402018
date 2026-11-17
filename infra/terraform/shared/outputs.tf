@@ -32,7 +32,7 @@ output "ami_name" {
 }
 
 output "instance_type" {
-  description = "Tipo de instancia aprobado para los nodos k3s."
+  description = "Tipo de instancia de los nodos k3s."
   value       = local.instance_type
 }
 

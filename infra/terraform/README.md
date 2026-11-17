@@ -4,10 +4,12 @@ Este directorio describe la infraestructura de CircleGuard en **Terraform**: mó
 reutilizables y tres estados independientes (DEV, STAGE, PROD) que consumen esa
 red compartida y la infraestructura existente de la Parte 1 **sin modificarla**.
 
-> **Estado de ejecución:** este documento describe la configuración y el
-> procedimiento. **Ningún `init`, `plan` ni `apply` se ha ejecutado todavía**:
-> los recursos "nuevos" están *declarados*, no creados. Todo lo marcado como
-> *existente* sí fue verificado en la cuenta con consultas de solo lectura.
+> **Estado de ejecución (HU 1 + HU 2):** la infraestructura descrita **ya
+> fue aprovisionada** en DEV, STAGE y PROD: los ciclos `init`/`plan`/`apply`
+> de HU 1 se ejecutaron y los recursos fueron verificados en AWS. En HU 2 los
+> **tres estados migraron al backend remoto S3** con locking nativo (ver §14 y
+> `docs/operaciones/terraform.md`). Todo lo marcado como *existente* fue
+> verificado en la cuenta con consultas de solo lectura.
 
 ---
 
@@ -19,9 +21,11 @@ red compartida y la infraestructura existente de la Parte 1 **sin modificarla**.
 - **Dentro del alcance:** red (solo lectura), Security Groups, identidad/perfiles
   IAM, nodos k3s (EC2 + EBS + cloud-init), snapshots EBS con DLM, registro Nexus
   representado como dato, y los tres roots por ambiente.
-- **Fuera del alcance (HU 2):** backend remoto (S3), bloqueo de estado con
-  DynamoDB, detección de *drift*, procedimientos de `destroy` y pipeline de
-  `terraform plan/apply` en Jenkins.
+- **Implementado en HU 2:** backend remoto **S3** con locking nativo
+  (`use_lockfile = true`, **sin DynamoDB**), estrategia de estado por
+  ambiente, detección de *drift* y procedimientos operativos (ver §14 y
+  `docs/operaciones/terraform.md`).
+- **Fuera del alcance actual:** pipeline de `terraform plan/apply` en Jenkins.
 
 ---
 
@@ -59,7 +63,7 @@ flowchart TB
   dev & stage & prod --> shared & networks & registry & security & iam & storage & k3s
 ```
 
-| Ambiente | Topología (aprobada) | Parameter Store |
+| Ambiente | Topología | Parameter Store |
 |---|---|---|
 | **DEV** | 1 nodo server, sin agent | no usa |
 | **STAGE** | 1 nodo server, sin agent | no usa |
@@ -74,7 +78,7 @@ infra/terraform/
 ├── README.md                     # este documento
 ├── bootstrap/
 │   └── preflight.sh              # verificación previa de solo lectura (B1)
-├── shared/                       # constantes aprobadas, sin recursos (B1)
+├── shared/                       # constantes compartidas, sin recursos (B1)
 │   ├── main.tf                   #   region, ami, instance_type, k3s_version, tags, token name
 │   └── outputs.tf                #   se leen como module.shared.<salida>
 ├── modules/
@@ -104,9 +108,10 @@ vacío a propósito (E2.5).
 
 ---
 
-## 4. Recursos principales (declarados; aún NO creados)
+## 4. Recursos principales (creados y verificados en AWS)
 
-Estos recursos **se crearán con `terraform apply`** (no existen en AWS hoy):
+Estos recursos **fueron creados con `terraform apply`** y existen en la cuenta
+(verificados tras su creación):
 
 | Módulo | Recursos declarados | Nombres / valores reales |
 |---|---|---|
@@ -116,8 +121,22 @@ Estos recursos **se crearán con `terraform apply`** (no existen en AWS hoy):
 | `iam` | `aws_iam_role` + `aws_iam_role_policy_attachment` + `aws_iam_instance_profile` | `cg-k3s-<env>-server-role/-profile`, `cg-k3s-prod-agent-role/-profile`; `AmazonSSMManagedInstanceCore` en todos |
 | `iam` | `aws_iam_role_policy` (inline, **solo PROD**) | `cg-k3s-prod-server-token-put` → `ssm:PutParameter` sobre el ARN exacto; `cg-k3s-prod-agent-token-get` → `ssm:GetParameter` sobre el ARN exacto |
 | `iam` | `aws_iam_role` DLM + attachment | `cg-dlm-<env>-role`, trust `dlm.amazonaws.com`, política `AWSDataLifecycleManagerServiceRole` (snapshots; **no** la de AMI) |
-| `storage` | `aws_dlm_lifecycle_policy` | schedule `diario-0300-utc` (`times = ["03:00"]` **UTC**), retención **7**, `resource_types = ["VOLUME"]`, `target_tags = {Project, Environment, DailySnapshot}` |
+| `storage` | `aws_dlm_lifecycle_policy` | schedule `diario-0300-utc` (`times = ["03:00"]` **UTC**), retención **7**, `resource_types = ["VOLUME"]`, `target_tags = {Environment}` (un único tag, ver nota abajo) |
 | (al arrancar) | parámetro SSM **SecureString** | `/circleguard/k3s/prod-join-token` — lo crea el server de PROD con cloud-init (no Terraform) |
+
+**Nota sobre el filtro DLM (`target_tags`):** AWS DLM evalúa `target_tags`
+con semántica **OR**: con varios pares, selecciona cualquier volumen que
+cumpla *al menos uno* (documentación oficial de DLM: *«at least one of the
+specified target resource tags»*). Con **un único par**, como en la
+configuración actual (`Environment = var.env`), el resultado es equivalente
+a AND; el fix de HU 2 redujo el filtro a un solo tag precisamente para
+garantizar selección exclusiva por ambiente. **Relacionado — error histórico
+corregido:** `copy_tags = true` copia los tags del volumen (incluido
+`Environment`) al snapshot, mientras `tags_to_add` agregaba a su vez
+`Environment`, provocando el error `Duplicate tag key 'Environment'
+specified` en DEV y STAGE al crear el snapshot. La corrección fue quitar
+`Environment` de `tags_to_add` (hoy solo `SnapshotBy = "dlm"`): los snapshots
+siguen identificándose por `Environment` porque lo heredan del volumen.
 
 **Versiones fijadas (sin `latest`):** Terraform `>=1.6.0,<2.0.0` · provider
 `hashicorp/aws ~> 6.72` · k3s **`v1.37.2+k3s1`** · AWS CLI v2 **`2.40.3`** con
@@ -165,7 +184,7 @@ m7i-flex.large` · `k3s_version = v1.37.2+k3s1` · `ssh_user = ubuntu` ·
 `common_tags = {Project=circleguard, ManagedBy=terraform, Part=2, HU=HU-1}` ·
 `token_parameter_name = /circleguard/k3s/prod-join-token`.
 
-### 6.3 Valores por defecto de módulos (aprobados, no se repiten en los roots)
+### 6.3 Valores por defecto de módulos (definidos en el módulo, no se repiten en los roots)
 
 | Módulo | Default | Valor |
 |---|---|---|
@@ -179,8 +198,8 @@ m7i-flex.large` · `k3s_version = v1.37.2+k3s1` · `ssh_user = ubuntu` ·
 ## 7. Requisitos previos
 
 1. **Terraform `>= 1.6.0, < 2.0.0`** (los módulos usan `check`, *preconditions*,
-   `startswith`, `one()`). No está instalado en esta máquina — instalarlo
-   requiere autorización explícita del equipo.
+   `startswith`, `one()`). Si no está instalado, instalarlo requiere
+   autorización explícita del responsable del entorno.
 2. **Proveedor** `hashicorp/aws ~> 6.72` (se descarga en `init`; la versión
    exacta quedará registrada en `.terraform.lock.hcl`, que debe versionarse).
 3. **Credenciales AWS** con acceso a la cuenta `718875641310`, región
@@ -211,14 +230,14 @@ m7i-flex.large` · `k3s_version = v1.37.2+k3s1` · `ssh_user = ubuntu` ·
   lectura para los `data` sources (`ec2:Describe*`, `sts:GetCallerIdentity`).
 - **Los roles de instancia no usan `AdministratorAccess`**: solo
   `AmazonSSMManagedInstanceCore` (+ en PROD las dos políticas inline de
-  parámetro sobre el ARN exacto). **Sin permisos KMS** (decisión aprobada).
+  parámetro sobre el ARN exacto). **Sin permisos KMS**.
 - **Los nodos** reciben credenciales solo por *instance profile*; el bootstrap
   instala AWS CLI v2 fijado con SHA256 **solo donde Parameter Store se usa**
   (PROD).
 
 ---
 
-## 9. Comandos esperados (instrucciones; NO ejecutados)
+## 9. Comandos de ejecución (ya ejecutados en HU 1; referencia)
 
 ```bash
 #0) Preflight (solo lectura) — antes de todo
@@ -239,11 +258,11 @@ terraform -chdir=infra/terraform/envs/dev output -json
 ```
 
 **Orden recomendado:** `dev` → `stage` → `prod`, un ambiente a la vez, con el
-preflight en verde antes de cada `init`. **Precauciones (estado local, HU 2):**
-no hay backend remoto todavía → el `*.tfstate` vive en la máquina del operador
-(ya está en `.gitignore`); una sola persona debe aplicar por ambiente a la vez;
-hacer copia del estado antes de cambios arriesgados. Nunca ejecutar comandos
-que no estén documentados aquí.
+preflight en verde antes de cada `init`. **Precauciones (estado en S3, HU 2):**
+el estado vive en el bucket `circleguard-tfstate-718875641310` con locking
+nativo (ver §14); una sola persona debe operar por ambiente a la vez; guardar
+el plan con `-out` y revisarlo antes de `apply`; nunca ejecutar comandos que
+no estén documentados en `docs/operaciones/terraform.md`.
 
 ## 10. Outputs relevantes
 
@@ -269,8 +288,8 @@ variables, `tfvars` ni en el estado de Terraform (nace dentro de la instancia).
 | **IMDSv2** | `http_tokens = "required"` en las cuatro instancias; cloud-init usa el *token dance* de IMDSv2 |
 | **Cifrado EBS** | gp3 con `encrypted = true` (la cuenta no tiene cifrado por defecto) y `delete_on_termination = true` |
 | **Token de k3s (PROD)** | SecureString en Parameter Store; publicación con `--value file://` (el valor no pasa por argv ni por logs), lectura con `GetParameter --with-decryption` redirigida a fichero `0600`, unión con `--token-file`, sin `set -x`, sin `K3S_TOKEN` en el entorno, temporales limpiados con `trap` |
-| **SSH / acceso** | Solo desde `cg-devops-sg` (decisión2); SSM Session Manager como alternativa preferida |
-| **Registro Nexus** | HTTP sin TLS temporalmente (deuda aceptada): `registries.yaml` declara el endpoint `http://` de la IP privada; sin credenciales en cloud-init ni Terraform |
+| **SSH / acceso** | Solo desde `cg-devops-sg`; SSM Session Manager como alternativa preferida |
+| **Registro Nexus** | HTTP sin TLS temporalmente (deuda documentada): `registries.yaml` declara el endpoint `http://` de la IP privada; sin credenciales en cloud-init ni Terraform |
 | **Secretos en Git** | Escaneo sin coincidencias (`AKIA…`, claves, passwords, tokens); `tfvars` solo contienen `key_name`, `root_volume_size`, `agent_count` |
 
 ---
@@ -285,11 +304,13 @@ SSM; `one(module.registry.security_group_ids)` exige que `cg-devops` tenga
 
 **Limitaciones conocidas:**
 
-1. **Nada ejecutado:** sin `init`, `plan` ni `apply`; el comportamiento real
-   (cloud-init, k3s, DLM, pulls de Nexus) está **pendiente de verificación**.
-2. **Estado local sin backend** (HU 2 agregará S3 + DynamoDB + lock).
+1. **Estado en backend remoto (HU 2):** los tres entornos operan con backend
+   S3 + locking nativo; el comportamiento funcional (cloud-init, k3s, DLM,
+   pulls de Nexus) **fue verificado** tras el aprovisionamiento de HU 1.
+2. **Detección de drift:** `terraform plan` / `plan -refresh-only` documentados
+   en `docs/operaciones/terraform.md`; el locking depende de `use_lockfile`.
 3. **Una sola AZ** (`us-east-1a`) y **PROD sin HA** de plano de control
-   (1 server + 1 agent): decisiones aceptadas y documentadas.
+   (1 server + 1 agent): limitación conocida y documentada.
 4. **Nexus por HTTP** y **sin pull-through de Docker Hub** (imágenes de Hub van
    directo a internet, permitido por el egress).
 5. **`get.k3s.io`** es un script servido por HTTPS sin fijar (la *versión* de
@@ -327,5 +348,42 @@ compartidos.
 **Verificación de salud (solo lectura):** `./scripts/check-infrastructure.sh`
 (documentado en `docs/operaciones/infraestructura.md`).
 
-**Destrucción:** fuera del alcance de HU 1 (procedimientos de `destroy` y
-apagado de recursos pertenecen a HU 2 / cierre del proyecto).
+**Destrucción:** procedimiento documentado en
+`docs/operaciones/terraform.md` (§ *Destrucción controlada*): requiere
+`plan -destroy` revisado y **aprobación explícita**; no se ha ejecutado ningún
+`destroy` sobre esta infraestructura.
+
+---
+
+## 14. Estado remoto y backend S3 (HU 2)
+
+Los tres estados viven en un bucket S3 compartido con claves independientes
+por ambiente (cada root declara su bloque `backend "s3"` en `versions.tf`):
+
+| Entorno | Clave del estado | Lockfile (`use_lockfile`) |
+|---|---|---|
+| DEV | `dev/terraform.tfstate` | `dev/terraform.tfstate.tflock` |
+| STAGE | `stage/terraform.tfstate` | `stage/terraform.tfstate.tflock` |
+| PROD | `prod/terraform.tfstate` | `prod/terraform.tfstate.tflock` |
+
+- **Bucket:** `circleguard-tfstate-718875641310` en `us-east-1`, con
+  cifrado SSE-S3 (`AES256`), versionamiento habilitado, S3 Block Public Access
+  (4/4), object ownership `BucketOwnerEnforced` y política que deniega
+  tráfico sin TLS. Su creación la administra el root independiente
+  `infra/terraform/backend-bootstrap/` (estado local propio, con
+  `prevent_destroy`).
+- **Locking nativo:** `use_lockfile = true` escribe un objeto `.tflock` junto
+  al estado durante cada operación; **no se usa DynamoDB** (el locking vía
+  `dynamodb_table` está deprecado en Terraform). El bloque incluye
+  `allowed_account_ids = ["718875641310"]` como red de seguridad.
+- **Migración:** los tres estados se migraron desde el backend local con
+  `terraform init -migrate-state`, preservando el contenido semántico
+  (direcciones, IDs, outputs y checks verificados contra respaldos previos).
+  `serial` y `lineage` se regeneraron durante la migración (comportamiento
+  observado en las tres migraciones y consistente con el código fuente de
+  Terraform; no afecta a los recursos).
+- **Respaldos:** junto a cada `versions.tf` se conservan copias históricas
+  `terraform.tfstate.bak-migracion-20261117` y `terraform.tfstate.backup`
+  (ignoradas por git). El bucket, además, versiona cada escritura.
+- **Procedimientos:** operación diaria, drift, recuperación desde versiones,
+  locking y comandos de riesgo → `docs/operaciones/terraform.md`.

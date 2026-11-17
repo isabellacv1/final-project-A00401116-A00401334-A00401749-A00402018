@@ -10,9 +10,9 @@
 #     (module.registry.security_group_ids[...]) como destino, en lugar de un
 #     CIDR con la IP pública: la documentación AWS indica que las reglas de
 #     egress con grupo de destino permiten tráfico hacia "the private IP
-#     addresses" de las ENIs de ese grupo, que es exactamente nuestro caso.
-#   - Puerto 8082 y HTTP sin TLS: decisión ya aprobada (deuda documentada en
-#     el README; endurecer con TLS queda fuera de la HU 1).
+#     addresses" de las ENIs de ese grupo, que es el caso de esta implementación.
+#   - Puerto 8082 y HTTP sin TLS: limitación conocida (deuda documentada en
+#     el README; endurecer con TLS queda fuera del alcance de esta HU).
 
 output "instance_id" {
   description = "ID de la instancia cg-devops que aloja Nexus."
@@ -60,7 +60,7 @@ output "registry_endpoint" {
 }
 
 output "registry_scheme" {
-  description = "Esquema del registro (http: Nexus se expone por HTTP temporalmente, decisión aceptada)."
+  description = "Esquema del registro (http: Nexus se expone por HTTP temporalmente; deuda en el README)."
   value       = "http"
 }
 

@@ -2,15 +2,15 @@
 # Módulo: k3s-cluster (HU 1)
 #
 # Crea las CUATRO instancias EC2 de los tres clústeres k3s independientes
-# (decisión aprobada) y su bootstrap mediante cloud-init:
+# y su bootstrap mediante cloud-init:
 #   dev    -> 1 server     stage -> 1 server     prod -> 1 server + 1 agent
 #
-# Conserva: m7i-flex.large (decisión establecida), AMI/versión/usuario de
+# Conserva: m7i-flex.large (fijo en shared), AMI/versión/usuario de
 # shared, subnets y VPC existentes (B2, solo lectura), Security Groups de B3,
 # instance profiles de B3, key pairs existentes por ambiente, IMDSv2, sin EIP,
 # monitoring=false, sin tocar ni reemplazar las instancias existentes.
 #
-# EBS: por nodo solo el volumen RAÍZ (decisión aprobada), gp3 CIFRADO,
+# EBS: por nodo solo el volumen RAÍZ, gp3 CIFRADO,
 # DEV/STAGE 40 GB y PROD 50 GB según var.root_volume_size, con
 # delete_on_termination=true y los tags que selecciona modules/storage (DLM).
 #
@@ -62,10 +62,10 @@ resource "aws_instance" "server" {
   iam_instance_profile = var.server_profile_name
 
   # IP pública explícita: obligatorio porque cg-stage-subnet tiene
-  # MapPublicIpOnLaunch=false (verificado en B2). Solo para salida y entrada
-  # aprobada; la exposición la gobiernan los Security Groups de B3.
+  # MapPublicIpOnLaunch=false (verificado en B2). Solo para el tráfico
+  # permitido por los Security Groups de B3; la exposición la gobiernan ellos.
   associate_public_ip_address = true
-  monitoring                  = false # sin detailed monitoring (decisión aprobada)
+  monitoring                  = false # sin detailed monitoring (ahorro de costo)
 
   metadata_options {
     http_endpoint = "enabled"
@@ -75,7 +75,7 @@ resource "aws_instance" "server" {
   root_block_device {
     volume_type           = "gp3"
     volume_size           = var.root_volume_size
-    encrypted             = true # EBS gp3 cifrado (aprobado; la cuenta no tiene cifrado por defecto)
+    encrypted             = true # EBS gp3 cifrado (la cuenta no tiene cifrado por defecto)
     delete_on_termination = true
     tags                  = merge(local.root_volume_tags, { Name = "${local.server_name}-root" })
   }
@@ -139,7 +139,7 @@ resource "aws_instance" "agent" {
   lifecycle {
     precondition {
       condition     = var.token_parameter_name != null && var.agent_sg_id != null && var.agent_profile_name != null
-      error_message = "el agente PROD requiere token_parameter_name (shared), agent_sg_id (security) y agent_profile_name (iam): revisa el cableado del ambiente en B5."
+      error_message = "el agente PROD requiere token_parameter_name (shared), agent_sg_id (security) y agent_profile_name (iam): falta alguno de estos valores en el cableado del root del ambiente."
     }
   }
 }
