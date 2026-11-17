@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: circleguard-defaults
+  namespace: circleguard
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: 50m
+        memory: 256Mi
+      default:
+        cpu: 500m
+        memory: 768Mi
+      min:
+        cpu: 25m
+        memory: 64Mi
+      max:
+        cpu: "2"
+        memory: 2Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: circleguard-data-defaults
+  namespace: circleguard-data
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: 100m
+        memory: 256Mi
+      default:
+        cpu: 500m
+        memory: 1Gi
+      min:
+        cpu: 50m
+        memory: 128Mi
+      max:
+        cpu: "2"
+        memory: 4Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: circleguard-observability-defaults
+  namespace: circleguard-observability
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: 50m
+        memory: 128Mi
+      default:
+        cpu: 200m
+        memory: 384Mi
+      min:
+        cpu: 25m
+        memory: 64Mi
+      max:
+        cpu: "1"
+        memory: 2Gi
