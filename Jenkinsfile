@@ -9,6 +9,11 @@ circleguardPipeline(
     sonarProjectKey: 'CircleGuard',
     // Pushes the images to the Nexus docker-hosted registry from dev and main
     publish: true,
+    // Static validation of the IaC (HU2): terraform fmt/validate + trivy
+    // misconfiguration scan, inside pinned containers. They need no AWS
+    // credentials and never run plan/apply; images are pulled on first use.
+    terraformValidate: true,
+    trivyScan: true,
     // HU-33: the library defaults only cover the "Parte 1" images, so the full
     // list is declared here. deploy/docker-compose.yml pulls all of them.
     images: [

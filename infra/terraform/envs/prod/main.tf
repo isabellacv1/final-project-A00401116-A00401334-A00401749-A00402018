@@ -51,6 +51,26 @@ module "security" {
   tags = module.shared.common_tags
 }
 
+# --- Acceso SSH de la colaboradora k8s (acotado por IP) -----------------------
+# Reglas INDEPENDIENTES de las reglas del módulo security: las reglas
+# principales de SSH (tcp/22) siguen siendo exclusivamente desde cg-devops-sg y
+# no se modifican. PROD tiene DOS nodos (server y agent), por lo que se agrega
+# una regla por SG con el mismo CIDR. No toca instancias, key pairs, user_data
+# ni otras reglas.
+resource "aws_vpc_security_group_ingress_rule" "ssh_k8s_partner" {
+  for_each = {
+    server = module.security.server_sg_id
+    agent  = module.security.agent_sg_id
+  }
+
+  security_group_id = each.value
+  description       = "SSH desde161.18.64.23 (colaboradora k8s, nodo ${each.key})"
+  ip_protocol       = "tcp"
+  from_port         = 22
+  to_port           = 22
+  cidr_ipv4         = "161.18.64.23/32"
+}
+
 # --- Identidad y perfiles (B3) ------------------------------------------------
 module "iam" {
   source = "../../modules/iam"
