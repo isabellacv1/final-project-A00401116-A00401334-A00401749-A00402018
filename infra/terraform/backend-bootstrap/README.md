@@ -8,9 +8,10 @@ los roots de `envs/` migren su backend. Es el "estado del estado": no crea
 infraestructura de la aplicación, solo el almacén de estados y sus controles
 de seguridad.
 
-> **Este directorio aún no se ha ejecutado.** El bucket **no existe**; esta
-> fase solo creó el código. El aprovisionamiento, la validación y la migración
-> de estados ocurren en fases posteriores, con autorización explícita.
+> **Estado actual:** este directorio **ya fue ejecutado** en HU 2: el código
+> pasó revisión, `init`/`validate`/`plan` y un `apply` autorizado crearon el
+> bucket, y sus controles fueron verificados por API. Los tres estados de
+> `envs/` **ya migraron** a este backend (ver más abajo).
 
 ## Por qué usa backend local
 
@@ -48,8 +49,12 @@ estados de los ambientes.
   y su costo residual.
 
 El versionado es la base del procedimiento de recuperación: si un estado se
-escribe mal o se pierde, se restaura una versión anterior del objeto (procedimiento
-documentado en la fase de operación).
+escribe mal o se pierde, puede restaurarse una versión anterior del objeto.
+**Descargar una versión no la restaura automáticamente**: el procedimiento
+completo (7 pasos, sin sobrescrituras improvisadas) está en
+[`docs/operaciones/terraform.md`](../../../docs/operaciones/terraform.md),
+sección *Respaldos y recuperación*, y se resume en *Recuperación desde
+versiones S3* más abajo.
 
 ## Protección `prevent_destroy` y sus limitaciones
 
@@ -69,9 +74,9 @@ permisos S3 borre el bucket (o sus versiones) por fuera de Terraform, ni un
 En esta fase **no** se agregó ninguna regla opcional de denegación de
 `s3:DeleteObjectVersion` (queda fuera de alcance por decisión de diseño).
 
-## Backend S3 de los ambientes (fase posterior)
+## Backend S3 de los ambientes (implementado)
 
-Cuando se migren los roots de `envs/`, cada uno usará un bloque como este,
+Los roots de `envs/` ya declaran su bloque `backend "s3"` en `versions.tf`,
 sin DynamoDB (el locking nativo de S3 reemplaza a la tabla de DynamoDB):
 
 ```hcl
@@ -89,9 +94,10 @@ terraform {
 Cada ambiente usa una **clave independiente** (`dev/`, `stage/`, `prod/`),
 con lo que los tres estados quedan aislados lógicamente dentro del mismo
 bucket. El lockfile asociado a cada clave (`terraform.tfstate.tflock`) es el
-mecanismo de exclusión mutua entre operaciones concurrentes.
+mecanismo de exclusión mutua entre operaciones concurrentes. El bloque real
+incluye además `allowed_account_ids = ["718875641310"]`.
 
-## Comandos previstos (fase posterior — NO ejecutar todavía)
+## Comandos utilizados (ya ejecutados con autorización; referencia)
 
 ```bash
 # 1) Inicializar y validar el bootstrap (no aprovisiona nada)
@@ -101,22 +107,63 @@ terraform validate
 
 # 2) Revisar el plan y aplicarlo SOLO con autorización explícita
 terraform plan -out=bootstrap.tfplan
-terraform apply "bootstrap.tfplan"
+terraform apply "bootstrap.tfplan"        # →7 recursos creados,0 modificados,0 destruidos
 
-# 3) Verificaciones post-apply (solo lectura)
+# 3) Verificaciones post-apply (solo lectura) — ejecutadas y correctas
 terraform output
 aws s3api get-bucket-versioning --bucket circleguard-tfstate-718875641310
 aws s3api get-public-access-block --bucket circleguard-tfstate-718875641310
 aws s3api get-bucket-encryption --bucket circleguard-tfstate-718875641310
 ```
 
-## Migración de estados (fases posteriores)
+## Migración de estados (realizada)
 
-Los estados de DEV, STAGE y PROD se migrarán **de manera individual y en ese
-orden** (DEV → STAGE → PROD), con `terraform init -migrate-state` en cada root
-tras respaldar el estado local. **No se ha realizado ninguna migración.**
-Cada migración exige autorización explícita y sus verificaciones
-(conteo de direcciones, plan sin recursos por crear/destruir, versionado).
+Los estados de DEV, STAGE y PROD se migraron **de manera individual y en ese
+orden** (DEV → STAGE → PROD), cada uno con `terraform init -migrate-state`
+tras respaldar el estado local. Cada migración fue verificada antes de
+continuar: destino correcto, direcciones e IDs idénticos a los respaldos
+previos, plan sin recursos por crear/destruir y lockfile liberado.
+`serial` y `lineage` se regeneraron en los tres casos (comportamiento
+observado en las tres migraciones y consistente con el código fuente de
+Terraform; el contenido semántico no cambió).
+
+Los respaldos previos se conservan junto a cada root
+(`terraform.tfstate.bak-migracion-20261117`) y en copia independiente; el
+`.tfstate` local de cada ambiente quedó vacío (el backend remoto es la fuente
+de verdad).
+
+## Recuperación desde versiones S3
+
+El versionado conserva cada escritura del estado. **Descargar una versión
+anterior no equivale a restaurarla**: es solo un paso de diagnóstico. La
+restauración es una operación explícita que requiere aprobación. Procedimiento
+completo en [`docs/operaciones/terraform.md`](../../../docs/operaciones/terraform.md);
+
+1. **Detener operaciones concurrentes:** verificar que nadie ejecute
+   `plan`/`apply` sobre el ambiente (`.tflock` ausente) y coordinar una
+   ventana de mantenimiento.
+2. **Identificar la versión correcta:**
+   `aws s3api list-object-versions --bucket circleguard-tfstate-718875641310 --prefix <env>/terraform.tfstate`
+   y elegir la versión por `VersionId`/`LastModified` (no "la más vieja"
+   por defecto).
+3. **Descargarla sin sobrescribir:** `aws s3api get-object … --version-id <id> <archivo-candidato>`;
+   el estado actual **no se toca** en este paso.
+4. **Respaldar la versión remota actual:** descargar también la versión
+   `IsLatest=true` como evidencia antes de cualquier restauración.
+5. **Comparar:** contenido (direcciones, IDs, outputs), `lineage` y `serial`
+   entre candidato y actual; el candidato debe corresponder al entorno
+   correcto (revisar `outputs.environment`).
+6. **Validar el estado candidato:** con una copia en un directorio aislado,
+   `terraform state list` (y opcionalmente un `plan` de solo lectura) para
+   confirmar que describe la infraestructura esperada.
+7. **Restaurar de forma explícita y verificar:** con aprobación registrada,
+   la vía nativa es `terraform state push <candidato>` desde el root del
+   entorno (valida `lineage`/`serial`) o, como alternativa controlada, subir
+   el objeto con `aws s3api put-object` conservando la versión actual como
+   respaldo. Verificar después con `state list`, un `plan` sin destrucciones
+   y una nueva versión visible en `list-object-versions`. Si el `lineage`
+   difiere, `state push` rechaza la escritura: **no usar `-force` como opción
+   normal de recuperación**.
 
 ## Seguridad de las credenciales
 
