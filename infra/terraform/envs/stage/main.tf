@@ -49,6 +49,21 @@ module "security" {
   tags = module.shared.common_tags
 }
 
+# --- Acceso SSH de la colaboradora k8s (acotado por IP) -----------------------
+# Regla INDEPENDIENTE de las reglas del módulo security: la regla principal de
+# SSH (tcp/22) sigue siendo exclusivamente desde cg-devops-sg y no se modifica.
+# Es exclusiva de STAGE (aplicada junto con DEV bajo la misma autorización);
+# solo agrega una regla de ingress con origen CIDR; no toca instancias, key
+# pairs, user_data ni otras reglas.
+resource "aws_vpc_security_group_ingress_rule" "ssh_k8s_partner" {
+  security_group_id = module.security.server_sg_id
+  description       = "SSH desde161.18.64.23 (colaboradora k8s)"
+  ip_protocol       = "tcp"
+  from_port         = 22
+  to_port           = 22
+  cidr_ipv4         = "161.18.64.23/32"
+}
+
 # --- Identidad y perfiles (B3) ------------------------------------------------
 module "iam" {
   source = "../../modules/iam"
