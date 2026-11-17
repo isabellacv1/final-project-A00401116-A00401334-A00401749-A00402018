@@ -329,22 +329,30 @@ Ninguno de estos comandos forma parte de la operación rutinaria.
 
 ---
 
-## 12. Cambios de `user_data` pendientes **[AUTORIZACIÓN por entorno]**
+## 12. Cambios de `user_data` **[AUTORIZACIÓN por entorno]**
 
 Existe una **diferencia conocida y documentada** entre el `user_data`
-registrado en las instancias y el código actual de los tres ambientes,
-relacionada con el fix de AWS CLI (`chmod +x` de los binarios del instalador,
-commit `2043a77`):
+registrado en las instancias y el código actual, relacionada con el fix de
+AWS CLI (`chmod +x` de los binarios del instalador, commit `2043a77`):
 
-- **No han sido aplicadas.** Los planes de DEV, STAGE y PROD muestran
-  cambios in-place de `user_data` (1 en DEV, 1 en STAGE, 2 en PROD).
-- **No están autorizadas automáticamente:** cada una se revisa y aprueba
+- **DEV: aplicado y verificado** durante HU2 (ciclo controlado con plan
+  guardado y aprobación explícita): la instancia `i-090c5ab5c3196f8d3`
+  quedó sincronizada con el código y el plan posterior resultó en
+  `No changes`. La actualización **provocó un stop/start** y la IP pública
+  cambió (`18.213.113.102` → `34.232.48.248`, sin Elastic IP): verificar
+  siempre las referencias a la IP antes de repetir el procedimiento.
+- **STAGE y PROD: pendientes.** Sus planes muestran cambios in-place de
+  `user_data` (1 en STAGE, 2 en PROD). En STAGE el único drift es la línea
+  `chmod` (sin efecto funcional allí: dev/stage no instalan AWS CLI); en
+  PROD el drift afecta al server (sí instala AWS CLI) y al agent.
+- **No están autorizados automáticamente:** cada uno se revisa y aprueba
   **por entorno**.
 - **Impacto posible:** una actualización de `user_data` **puede provocar
-  stop/start de la EC2** incluso con `user_data_replace_on_change=false`;
-  no describirla como un cambio inocuo.
+  stop/start de la EC2** (así ocurrió en DEV) incluso con
+  `user_data_replace_on_change=false`; no describirla como un cambio inocuo.
 - Antes de aplicar: revisar el diff completo, evaluar ventana de
-  mantenimiento y verificar la instancia después.
+  mantenimiento, verificar referencias a la IP pública del entorno y
+  comprobar la instancia después.
 
 ---
 
