@@ -71,6 +71,23 @@ crearlo.
 Las imágenes se construyen con BuildKit y se etiquetan con la versión semántica resuelta por
 el pipeline. **Nunca se usa `latest`.**
 
+Para construir una imagen suelta en local (por ejemplo, `notification`) y ejecutarla con sus
+dependencias:
+
+```bash
+# Contexto: la raíz del repositorio, porque el Dockerfile copia gradle/ y services/
+docker build -t circleguard/notification-service:1.0.0 \
+  -f services/circleguard-notification-service/Dockerfile .
+
+# Compose construye y arranca el servicio con Kafka y el resto de dependencias
+docker compose -f docker-compose.dev.yml -f docker-compose.app.yml up -d --build notification
+
+# Verificar que queda saludable
+docker compose -f docker-compose.dev.yml -f docker-compose.app.yml ps notification
+```
+
+Las mismas instrucciones aplican a `file` y `dashboard` cambiando el nombre del servicio.
+
 ## Registro Nexus
 
 Las imágenes se publican en el repositorio Docker de Nexus:
@@ -96,9 +113,15 @@ Las imágenes se publican en el repositorio Docker de Nexus:
 | `stage` | `deploy/environments/stage.env` | `184.192.198.69` | `stage` | Promoción automática desde `dev` tras las validaciones y E2E. |
 | `prod` | `deploy/environments/prod.env` | `98.92.231.157` | `prod` | Promoción desde `stage` con aprobación manual (`input`). |
 
-Cada archivo define `HOST`, `SSH_USER`, `REGISTRY`, `SPRING_PROFILES_ACTIVE` y `WEB_HOST`.
-La versión (`VERSION`) no se guarda en el archivo: la escribe el pipeline con la versión
-publicada por el mismo build.
+Cada archivo define `HOST`, `SSH_USER`, `REGISTRY`, `SPRING_PROFILES_ACTIVE`, `WEB_HOST`, el nivel
+de logs (`LOG_LEVEL`), las vigencias (`JWT_EXPIRATION`, `QR_EXPIRATION`) y el endpoint de
+PostgreSQL (`DB_HOST`, `DB_PORT`). La versión (`VERSION`) no se guarda en el archivo: la escribe el
+pipeline con la versión publicada por el mismo build.
+
+Las credenciales no están en estos archivos: van en `deploy/secrets/<ambiente>-secrets.env`, que
+Git ignora. En el host, el paso de despliegue fusiona ambos en el `.env` que lee Compose
+(`cat environments/<ambiente>.env secrets.env > .env`); ver
+[`deploy/README.md`](../../deploy/README.md#secrets-on-the-host).
 
 ### Credenciales de Jenkins
 
