@@ -5,9 +5,9 @@ spring:
     problemdetails:
       enabled: true
   datasource:
-    url: jdbc:postgresql://localhost:5432/circleguard_identity
-    username: admin
-    password: password
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/circleguard_identity}
+    username: ${DB_USERNAME:admin}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -16,18 +16,24 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
 vault:
-  secret: "746573742d7365637265742d33322d63686172732d6c6f6e672d313233343536"
-  salt: "deadbeef"
-  hash-salt: "12345678"
+  # Hexadecimales, obligatorios: protegen los datos identificables del vault.
+  secret: ${VAULT_SECRET}
+  salt: ${VAULT_SALT}
+  hash-salt: ${VAULT_HASH_SALT}
 
 jwt:
-  secret: "my-super-secret-dev-key-32-chars-long-12345678"
+  # Debe coincidir con el secret de auth (valida los tokens que emite auth).
+  secret: ${JWT_SECRET}
+
+logging:
+  level:
+    root: ${LOG_LEVEL:INFO}
 
 server:
   port: 8083
