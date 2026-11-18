@@ -88,13 +88,15 @@ YAML un efecto que produce Spring.
 | Archivo | Contenido | ¿Se versiona? |
 |---------|-----------|---------------|
 | `deploy/environments/<ambiente>.env` | Host, registro, `WEB_HOST`, nivel de logs, expiraciones, CORS | Sí |
-| `deploy/secrets/<ambiente>-secrets.env` | `JWT_SECRET`, `QR_SECRET`, `DB_PASSWORD`, `VAULT_*`, credenciales de middleware | **No** |
+| Credencial de Jenkins `<ambiente>-app-secrets` (*Secret file*) | `JWT_SECRET`, `QR_SECRET`, `DB_PASSWORD`, `VAULT_*`, credenciales de middleware | **No** |
+| `deploy/secrets/<ambiente>-secrets.env` | Los mismos secretos, solo para ejecutar en local | **No** |
 | `*.example` | Solo nombres de variables | Sí |
 
-Proveedor **objetivo**: credenciales de Jenkins (`<ambiente>-app-secrets`) materializadas en el
-host. Proveedor **inicial**: archivo por host con permisos `600`, porque la librería del pipeline
-vive en otro repositorio y no debe bloquear la HU. El compose no cambia al migrar: consume las
-mismas variables.
+Proveedor de secretos: **credenciales de Jenkins**. El paso `deployEnvironment` de la librería
+del pipeline lee `<ambiente>-app-secrets` y lo entrega al host en cada despliegue. Así no queda
+ningún archivo de secretos administrado a mano en los servidores, y para rotar un secreto basta
+con actualizar la credencial y volver a desplegar. El compose no depende del proveedor: consume
+las mismas variables en local y en los tres ambientes.
 
 `SPRING_PROFILES_ACTIVE` se mantiene porque lo envía la librería, pero **no activa nada**: no
 existe ningún `application-<perfil>.yml`, así que no se usa como evidencia.
@@ -116,18 +118,25 @@ variables. `docker compose config --quiet` valida la interpolación sin imprimir
 ### 5.2.1 Cómo llegan los dos archivos al contenedor
 
 Compose solo lee **un** archivo de entorno (`.env` en el directorio del proyecto, o `--env-file`).
-Por eso el host recibe un archivo fusionado, y la fusión es un `cat` de lo versionado y lo no
-versionado:
+Por eso el host recibe un solo archivo, que el pipeline arma en cada despliegue:
+
+1. Variables de `deploy/environments/<ambiente>.env` más la `VERSION` publicada por el build.
+2. El contenido de la credencial `<ambiente>-app-secrets` se agrega **en el shell**
+   (`withCredentials` + `file`), así que nunca pasa por variables de Groovy ni aparece en el log.
+   Se eliminan los `\r` para que un archivo escrito en Windows no meta ese carácter dentro de las
+   contraseñas.
+3. El resultado se copia por `scp` a `circleguard/.env` del host, con permisos `600`. Después se
+   borra la copia del workspace de Jenkins, aunque el paso falle.
+
+El equivalente manual, por ejemplo para ejecutar en local, es:
 
 ```bash
-# en el host, junto a los compose
-cat environments/dev.env secrets/dev-secrets.env > .env   # permisos 600
-docker compose -f docker-compose.dev.yml -f docker-compose.yml up -d --wait
+cat deploy/environments/dev.env deploy/secrets/dev-secrets.env > .env   # permisos 600
+docker compose -f docker-compose.dev.yml -f deploy/docker-compose.yml up -d --wait
 ```
 
 Así el secreto no viaja en Git ni en la imagen, y el contrato de variables es el mismo en local
-(`.env` de la raíz) y en los tres ambientes. Cuando la librería del pipeline materialice
-`<ambiente>-app-secrets`, solo cambia el origen del segundo archivo.
+(`.env` de la raíz) y en los tres ambientes.
 
 ### 5.3 Fallo temprano y defaults
 

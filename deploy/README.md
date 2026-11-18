@@ -18,8 +18,8 @@ Jenkins (branch dev)
   exact images published by the same build (`<version>` comes from `resolveVersion()`,
   never `latest`).
 - **Configuration as variables (HU-34):** everything environment specific lives in
-  `deploy/environments/<environment>.env` and every credential in
-  `deploy/secrets/<environment>-secrets.env` (not versioned). The same image runs in
+  `deploy/environments/<environment>.env` and every credential in the Jenkins
+  credential `<environment>-app-secrets` (never versioned). The same image runs in
   all three environments.
 - **Verification:** the build only succeeds if every component answers over HTTP.
 
@@ -32,7 +32,7 @@ Jenkins (branch dev)
 | `environments/stage.env` | `stage` environment (same keys). |
 | `environments/prod.env` | `prod` environment (same keys). |
 | `secrets/secrets.env.example` | Template of the secret contract (names only, no values). |
-| `secrets/<environment>-secrets.env` | Real credentials. **Not versioned**; `600` permissions on the host. |
+| `secrets/<environment>-secrets.env` | Real credentials for local runs. **Not versioned**. Deployed environments get them from Jenkins (see below). |
 
 The infrastructure layer (`docker-compose.dev.yml` at the repository root, with
 PostgreSQL, Neo4j, Kafka, Redis, Zookeeper and OpenLDAP and their healthchecks)
@@ -65,7 +65,8 @@ Optional overrides with in-network defaults: `KAFKA_BOOTSTRAP_SERVERS`
 `LDAP_USERNAME`, `IDENTITY_API_URL`, `AUTH_API_URL`,
 `CIRCLEGUARD_PROMOTION_SERVICE_URL`, `FILE_STORAGE_PATH` (`/app/uploads`).
 
-Secrets, in `deploy/secrets/<environment>-secrets.env`:
+Secrets, in the Jenkins credential `<environment>-app-secrets` (locally,
+`deploy/secrets/<environment>-secrets.env`):
 
 | Variable | Consumed by |
 |----------|-------------|
@@ -82,21 +83,24 @@ password.
 
 ## Secrets on the host
 
-Compose reads a single environment file per project. On the host, the deploy step
-places the two sources next to the compose files and merges them:
+Compose reads a single environment file per project, so the deploy step
+(`deployEnvironment` in the pipeline library) builds it from the two sources:
 
-```bash
-# once per host, outside Git
-install -m 600 /dev/null secrets.env      # then fill it from the password manager
-# on every deploy
-cat environments/dev.env secrets.env > .env
-docker compose -f docker-compose.dev.yml -f docker-compose.yml up -d --wait
-```
+1. `deploy/environments/<environment>.env` (versioned, includes `REGISTRY`) plus `VERSION`
+   from the build.
+2. The Jenkins **Secret file** credential `<environment>-app-secrets`
+   (`dev-app-secrets`, `stage-app-secrets`, `prod-app-secrets`), a `KEY=VALUE` file
+   that follows `secrets/secrets.env.example`. It is appended in the shell, so it
+   never goes through Groovy or the console log; Windows line endings (`\r`) are
+   removed.
 
-The versioned file never contains a credential, and the `.env` on the host is
-`600`. The target is to have the pipeline materialize `secrets.env` from the
-`<environment>-app-secrets` Jenkins credential (same variable names, no change to
-the compose files).
+The merged file is copied to the host as `circleguard/.env` with `600` permissions,
+and the copy in the Jenkins workspace is deleted. Nothing is kept on the host
+besides that `.env`: the next deploy overwrites it with the current credential.
+
+To rotate a secret, update the Jenkins credential and run the deploy again. The
+images are not rebuilt. If the credential is missing, the build fails at the
+deploy stage, and if a variable is empty, Compose rejects it (`${VAR:?}`).
 
 ## Requirements on the target host
 
@@ -104,7 +108,8 @@ the compose files).
   `"insecure-registries": ["100.31.132.57:8082"]` (no TLS on the registry connector).
 - The Jenkins credential `<environment>-credential` (SSH key of the `ubuntu` user):
   `dev-credential`, `stage-credential`, `prod-credential`.
-- The secrets file with `600` permissions owned by the deploy user.
+- The Jenkins credential `<environment>-app-secrets` (Secret file) with every
+  variable of `secrets/secrets.env.example` filled in.
 
 ## Manual execution
 

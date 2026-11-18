@@ -118,16 +118,17 @@ de logs (`LOG_LEVEL`), las vigencias (`JWT_EXPIRATION`, `QR_EXPIRATION`) y el en
 PostgreSQL (`DB_HOST`, `DB_PORT`). La versión (`VERSION`) no se guarda en el archivo: la escribe el
 pipeline con la versión publicada por el mismo build.
 
-Las credenciales no están en estos archivos: van en `deploy/secrets/<ambiente>-secrets.env`, que
-Git ignora. En el host, el paso de despliegue fusiona ambos en el `.env` que lee Compose
-(`cat environments/<ambiente>.env secrets.env > .env`); ver
-[`deploy/README.md`](../../deploy/README.md#secrets-on-the-host).
+Las credenciales no están en estos archivos: viven en la credencial de Jenkins
+`<ambiente>-app-secrets` (tipo *Secret file*, formato de `deploy/secrets/secrets.env.example`). El
+paso de despliegue la agrega al archivo de entorno y copia el resultado al host como `.env`
+(permisos `600`); ver [`deploy/README.md`](../../deploy/README.md#secrets-on-the-host).
 
 ### Credenciales de Jenkins
 
 | Credencial | Uso |
 |------------|-----|
 | `dev-credential`, `stage-credential`, `prod-credential` | Clave SSH del usuario `ubuntu` de cada entorno. |
+| `dev-app-secrets`, `stage-app-secrets`, `prod-app-secrets` | *Secret file* con los secretos de la aplicación de cada entorno (HU-34). Obligatoria para desplegar. |
 | `nexus-credential` | Usuario y contraseña para publicar en Nexus. |
 | `e2e-credential` / `e2e-credentials` | Usuario de prueba para los smoke tests y para Playwright. |
 | `git-credential` | Lectura del repositorio y reporte de estado a GitHub. |

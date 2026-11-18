@@ -284,8 +284,8 @@ push a dev ─► Build ─► Tests ─► Integración ─► SonarQube ─►
   `cg-prod` ya existen y tienen Docker.
 - Los servicios no exponen OpenAPI/Swagger.
 - **Resuelto (HU-34):** los secretos de desarrollo salieron de los `application.yml` y de los
-  compose. La configuración se inyecta por ambiente y los secretos viven en
-  `deploy/secrets/<ambiente>-secrets.env`, que Git ignora. Ver
+  compose. La configuración se inyecta por ambiente y los secretos viven en la credencial
+  de Jenkins `<ambiente>-app-secrets`, que el despliegue entrega al host. Ver
   [`operaciones/configuracion-externa.md`](operaciones/configuracion-externa.md).
 - Las variables de entorno de un contenedor son visibles con `docker inspect`; el acceso al host
   es la frontera de seguridad mientras no se adopte `secrets:` de Compose o Vault.
