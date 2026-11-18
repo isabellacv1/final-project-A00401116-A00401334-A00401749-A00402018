@@ -3,6 +3,8 @@ kind: Kustomization
 resources:
   - ../../base
   - ../../observability
+components:
+  - ../../observability/scrape-annotations
 labels:
   - pairs:
       circleguard.io/environment: stage

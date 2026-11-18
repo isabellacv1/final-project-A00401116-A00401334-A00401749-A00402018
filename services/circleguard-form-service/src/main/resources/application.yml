@@ -21,7 +21,6 @@ spring:
 server:
   port: 8086
 
-# Actuator: health probes for Kubernetes and metrics for Prometheus (HU-27)
 management:
   endpoints:
     web:
@@ -29,11 +28,15 @@ management:
         include: health,info,prometheus
   endpoint:
     health:
+      show-details: never
+      show-components: never
       probes:
         enabled: true
-  health:
-    mail:
-      enabled: false
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db
   metrics:
     tags:
       application: ${spring.application.name}

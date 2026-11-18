@@ -51,7 +51,6 @@ subprojects {
         "testCompileOnly"("org.projectlombok:lombok")
         "testAnnotationProcessor"("org.projectlombok:lombok")
         "implementation"("org.jetbrains.kotlin:kotlin-reflect")
-        // Health probes and Prometheus metrics for every service (HU-27)
         "implementation"("org.springframework.boot:spring-boot-starter-actuator")
         "runtimeOnly"("io.micrometer:micrometer-registry-prometheus")
         "testImplementation"("org.springframework.boot:spring-boot-starter-test")
