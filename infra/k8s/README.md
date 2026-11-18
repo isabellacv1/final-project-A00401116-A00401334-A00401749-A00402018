@@ -15,6 +15,7 @@ infra/k8s/
 │   ├── networkpolicies.yaml
 │   ├── rbac-deployer.yaml
 │   └── kustomization.yaml
+├── observability/          # Prometheus, kube-state-metrics, node-exporter y Grafana
 ├── overlays/
 │   ├── dev/kustomization.yaml
 │   ├── stage/kustomization.yaml
@@ -23,6 +24,7 @@ infra/k8s/
 ```
 
 - `base/`: configuración común para los tres ambientes.
+- `observability/`: stack de métricas y dashboards. Cada overlay lo incluye. Ver [`docs/observability/metrics.md`](../../docs/observability/metrics.md).
 - `overlays/`: ajustes pequeños por ambiente. `prod` tiene más recursos; `dev` y `stage` usan los valores base.
 - `README.md`: esta guía.
 
@@ -223,7 +225,7 @@ Son valores **provisionales**. No están validados contra la capacidad real de l
 |---|---:|---:|---:|---:|---:|
 | `circleguard` | 600 m | 2560 Mi | 5 | 7 Gi | 8 Gi |
 | `circleguard-data` | 700 m | 2560 Mi | 4 | 6 Gi | 16 Gi |
-| `circleguard-observability` | 300 m | 1 Gi | 1500 m | 3 Gi | 4 Gi |
+| `circleguard-observability` | 400 m | 1536 Mi | 2 | 3 Gi | 4 Gi |
 
 `prod`:
 
@@ -256,6 +258,7 @@ Cada namespace empieza con todo bloqueado. Después se permiten solo estos flujo
 - Entrada desde Traefik a aplicaciones y observabilidad.
 - Aplicaciones hacia datos en los puertos 5432, 7687, 29092, 6379 y 389.
 - Observabilidad hacia aplicaciones y datos para scraping.
+- Prometheus y kube-state-metrics hacia la API de Kubernetes (`observability/networkpolicies.yaml`).
 
 No hay salida general a Internet. Si luego se necesita SMTP, Gotify, alertas u otros servicios externos, habrá que añadir reglas explícitas.
 
