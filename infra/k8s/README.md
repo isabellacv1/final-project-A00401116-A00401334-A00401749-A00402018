@@ -15,7 +15,7 @@ infra/k8s/
 │   ├── networkpolicies.yaml
 │   ├── rbac-deployer.yaml
 │   └── kustomization.yaml
-├── observability/          # Prometheus, kube-state-metrics, node-exporter y Grafana
+├── observability/          # Prometheus, Grafana, Loki y Alloy
 ├── overlays/
 │   ├── dev/kustomization.yaml
 │   ├── stage/kustomization.yaml
@@ -24,7 +24,7 @@ infra/k8s/
 ```
 
 - `base/`: configuración común para los tres ambientes.
-- `observability/`: stack de métricas y dashboards. Cada overlay lo incluye. Ver [`docs/observability/metrics.md`](../../docs/observability/metrics.md).
+- `observability/`: métricas y dashboards (Prometheus, Grafana) y logs centralizados (Loki, Alloy). Cada overlay lo incluye. Ver [`metrics.md`](../../docs/observability/metrics.md) y [`logs.md`](../../docs/observability/logs.md).
 - `overlays/`: ajustes pequeños por ambiente. `prod` tiene más recursos; `dev` y `stage` usan los valores base.
 - `README.md`: esta guía.
 
@@ -213,7 +213,7 @@ kubectl get serviceaccount circleguard-deployer -n circleguard
 
 - `circleguard`: aplicaciones.
 - `circleguard-data`: PostgreSQL, Neo4j, Kafka, Redis y OpenLDAP.
-- `circleguard-observability`: Prometheus, Grafana, Alertmanager, Jaeger, Loki y Promtail.
+- `circleguard-observability`: Prometheus, Grafana, Alertmanager, Jaeger, Loki y Grafana Alloy.
 
 ### Cuotas
 

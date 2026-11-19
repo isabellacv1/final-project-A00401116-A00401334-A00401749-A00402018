@@ -1,4 +1,5 @@
-# Observability stack (HU-27): Prometheus, kube-state-metrics, node-exporter and Grafana.
+# Observability stack: metrics (HU-27) with Prometheus, kube-state-metrics, node-exporter and
+# Grafana, and logs (HU-26) with Loki and Grafana Alloy.
 # It is included by every overlay, so it is applied together with the base configuration.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -12,6 +13,8 @@ resources:
   - kube-state-metrics.yaml
   - node-exporter.yaml
   - grafana/grafana.yaml
+  - loki/loki.yaml
+  - alloy/alloy.yaml
 
 configMapGenerator:
   - name: prometheus-config
@@ -20,6 +23,12 @@ configMapGenerator:
   - name: prometheus-rules
     files:
       - prometheus/alerts.yml
+  - name: loki-config
+    files:
+      - loki/loki.yml
+  - name: alloy-config
+    files:
+      - alloy/config.alloy
   - name: grafana-provisioning
     files:
       - grafana/datasources.yaml
@@ -29,3 +38,4 @@ configMapGenerator:
       - grafana/dashboards/circleguard-services.json
       - grafana/dashboards/circleguard-infrastructure.json
       - grafana/dashboards/circleguard-business.json
+      - grafana/dashboards/circleguard-logs.json

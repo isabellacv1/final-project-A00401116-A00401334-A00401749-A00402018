@@ -228,4 +228,4 @@ Alertmanager, así que no se envían notificaciones.
 | node-exporter (por nodo) | 25 m / 64 Mi | 100 m / 128 Mi | — |
 
 La cuota de `circleguard-observability` se amplió a 10 pods y 2 DaemonSets para dejar espacio a
-Loki y Promtail (HU-26).
+Loki y Grafana Alloy, que recogen los logs (HU-26, ver [logs.md](logs.md)).
