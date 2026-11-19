@@ -186,6 +186,76 @@ Reglas:
 - Un plan sin `-out` no garantiza que el `apply` ejecute exactamente lo
   revisado (así lo advierte el propio Terraform).
 
+### 5.1 Aplicación desde CI (Jenkins) **[RUTINA]**
+
+El pipeline automatiza este mismo flujo **sin sustituir** el procedimiento
+manual de la §5: la vela manual sigue siendo el camino para cambios puntuales,
+recuperaciones y cualquier caso que no pase por el CI.
+
+```text
+Plan  →  Approval  →  Apply        (por entorno, dentro de un mismo build)
+```
+
+| Fase | Qué ejecuta el pipeline | DEV | PROD |
+|------|-------------------------|-----|------|
+| **Plan** | `terraform init -backend=true` + `terraform plan -detailed-exitcode -out=ci-<env>-b<build>.tfplan` sobre `infra/terraform/envs/<env>` | habilitado (`terraformPlan: true`, rama `dev`) | deshabilitado (`terraformApplyProd: false`); correría solo en `main` |
+| **Approval** | `input` manual (`submitter`, `submitterParameter: approvedBy`, `timeout`) | no aplica (DEV nunca pide aprobación) | deshabilitado (`terraformApproval: false` y `terraformApprovalProd: false`) |
+| **Apply** | `terraform apply -lock=true ci-<env>-b<build>.tfplan` | habilitado (`terraformApply: true`, rama `dev`) | deshabilitado (`terraformApplyProd: false`) |
+
+**Diferencias entre DEV y PROD**
+
+- **DEV**: root `infra/terraform/envs/dev`, **sin aprobación**, en la rama `dev`.
+- **PROD**: root `infra/terraform/envs/prod`, **solo desde la rama `main`**
+  (`terraformApplyProdBranches`; cualquier otra rama, y cualquier rama
+  configurada a la vez para DEV y para PROD, se rechaza) y **con aprobación
+  obligatoria** (`requireApproval: true` en `terraformApply`).
+
+**Validación de procedencia del plan** (ambos entornos, **antes** de tocar
+credenciales o ejecutar `init`/`apply`):
+
+- El nombre lleva el build (`ci-<env>-b<build>.tfplan`) y el sidecar
+  `<plan>.info` guarda `build`, `commit`, `root`, `changes`, `status`, `sha256`
+  y `createdAt`.
+- `build`, `commit`, `root` y el hash del sidecar deben coincidir con el build
+  actual (`TF_PLAN_BUILD/ROOT/FILE/INFO/SHA256/CHANGES`); además el **SHA-256**
+  se recalcula con `sha256sum` y se compara con el del sidecar (**fail closed**
+  si falta `sha256sum` o si el archivo cambió).
+- **Vigencia**: `createdAt` debe ser un instante válido y no futuro, y el plan
+  no puede tener más de `terraformApprovalMaxAgeMinutes` (60) de antigüedad.
+
+**Aprobación explícita antes del Apply** (solo PROD):
+
+- Se solicita **entre el Plan y el Apply**, con `submitter`
+  (`terraformApprovalSubmitter`, `admin`), `submitterParameter: approvedBy` y
+  `timeout` (`terraformApprovalTimeout`, 30 min).
+- Persiste `TF_APPROVED_BY`, `TF_APPROVED_AT`, `TF_APPROVED_PLAN_SHA` y
+  `TF_APPROVED_BUILD`; el apply los revalida —incluida la regla
+  `createdAt <= approvedAt`— **antes de `withCredentials`**. Una aprobación no
+  puede usarse para otro plan, otro build ni otro ambiente.
+- **Sin cambios no se pide aprobación ni se aplica.** Un `input` fallido o
+  interrumpido detiene el pipeline: el apply no se ejecuta.
+- Antes de mostrar el `input`, `requireApprovalTimeLeft()` exige que queden al
+  menos `terraformApprovalTimeout` minutos del presupuesto global de 120 min.
+
+**Evidencia de aplicación**
+
+- `terraform-apply-<env>-b<build>.txt`, archivado con el build: build, rama,
+  commit, root, plan, cambios, resultado, fecha y —cuando corresponde—
+  aprobador, fecha, hash y build aprobados y antigüedad del plan. **No** contiene
+  credenciales, variables sensibles ni `outputs` de Terraform.
+- El log conserva la salida de `terraform init` / `terraform apply`; ante un
+  `AccessDenied` indica registrar la acción y el recurso **sin ampliar IAM**.
+
+**Estados:** la librería nace con todos los switches de Terraform en `false`. En el
+`Jenkinsfile` del proyecto están habilitados `terraformValidate`, `terraformPlan` y
+`terraformApply` (solo la rama `dev`, sobre el plan del mismo build), mientras
+`terraformApproval`, `terraformApprovalProd` y `terraformApplyProd` siguen en
+`false`, así que **PROD nunca se aplica automáticamente**.
+
+> Las validaciones unitarias de la librería (Groovy con mocks) comprueban la
+> lógica de los steps; **no sustituyen** una validación en Jenkins real de
+> `init`, `plan`, `apply`, el `input` y los locks, que sigue pendiente.
+
 ---
 
 ## 6. Destrucción controlada **[AUTORIZACIÓN]**
