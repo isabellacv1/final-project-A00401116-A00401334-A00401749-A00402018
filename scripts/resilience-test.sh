@@ -67,8 +67,17 @@ check "sensitive endpoints are not exposed (/actuator/env -> $code, not 200)" '[
 # ---------------------------------------------------------------------------
 log "Scenario 2 - crash: the auth process exits"
 before=$(restarts $AUTH)
+started_before=$(docker inspect -f '{{.State.StartedAt}}' $AUTH)
 docker exec $AUTH sh -c 'kill -TERM 1' >/dev/null 2>&1
 log "  auth killed (restarts before: $before); waiting for the restart policy"
+# Spring Boot shuts down gracefully for a few seconds and the last health status
+# stays "healthy" meanwhile, so first wait until Docker has really started a new
+# process (StartedAt changes), then wait for it to become healthy.
+start=$SECONDS
+while [[ "$(docker inspect -f '{{.State.StartedAt}}' $AUTH)" == "$started_before" ]] && (( SECONDS - start < 120 )); do
+  sleep 1
+done
+log "  new auth process started after $((SECONDS - start))s"
 t=$(wait_for $AUTH healthy 180); rc=$?
 after=$(restarts $AUTH)
 check "Docker restarted auth by itself (RestartCount $before -> $after)" '(( after > before ))'
