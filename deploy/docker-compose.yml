@@ -17,11 +17,17 @@
 #
 # Inside the network the services reach each other by service name
 # (postgres, neo4j, redis, kafka, openldap, identity, ...).
+#
+# Resilience (HU-28): every container runs with `restart: unless-stopped`, so Docker
+# starts it again when its process exits (crash, ExitOnOutOfMemoryError, host reboot).
+# The healthcheck detects a running service that cannot serve requests; it does not
+# restart it. See docs/operaciones/patrones.md.
 
 services:
   auth:
     image: ${REGISTRY}/circleguard/auth-service:${VERSION}
     container_name: circleguard-auth-service
+    restart: unless-stopped
     ports:
       - "8180:8180"
     environment:
@@ -55,6 +61,7 @@ services:
   identity:
     image: ${REGISTRY}/circleguard/identity-service:${VERSION}
     container_name: circleguard-identity-service
+    restart: unless-stopped
     ports:
       - "8083:8083"
     environment:
@@ -79,6 +86,7 @@ services:
   promotion:
     image: ${REGISTRY}/circleguard/promotion-service:${VERSION}
     container_name: circleguard-promotion-service
+    restart: unless-stopped
     ports:
       - "8088:8088"
     environment:
@@ -109,6 +117,7 @@ services:
   form:
     image: ${REGISTRY}/circleguard/form-service:${VERSION}
     container_name: circleguard-form-service
+    restart: unless-stopped
     ports:
       - "8086:8086"
     environment:
@@ -129,6 +138,7 @@ services:
   gateway:
     image: ${REGISTRY}/circleguard/gateway-service:${VERSION}
     container_name: circleguard-gateway-service
+    restart: unless-stopped
     ports:
       - "8087:8087"
     environment:
@@ -149,6 +159,7 @@ services:
   notification:
     image: ${REGISTRY}/circleguard/notification-service:${VERSION}
     container_name: circleguard-notification-service
+    restart: unless-stopped
     ports:
       - "8082:8082"
     environment:
@@ -166,6 +177,7 @@ services:
   file:
     image: ${REGISTRY}/circleguard/file-service:${VERSION}
     container_name: circleguard-file-service
+    restart: unless-stopped
     ports:
       - "8085:8085"
     environment:
@@ -181,6 +193,7 @@ services:
   dashboard:
     image: ${REGISTRY}/circleguard/dashboard-service:${VERSION}
     container_name: circleguard-dashboard-service
+    restart: unless-stopped
     ports:
       - "8084:8084"
     environment:
@@ -199,6 +212,7 @@ services:
   web:
     image: ${REGISTRY}/circleguard/web:${VERSION}
     container_name: circleguard-web
+    restart: unless-stopped
     # Published on 8081 because the services' CORS policy only accepts
     # browser requests from http://localhost:8081 (and :8080).
     ports:

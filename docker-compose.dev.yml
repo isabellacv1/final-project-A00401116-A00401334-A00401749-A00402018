@@ -17,11 +17,17 @@
 #
 # Every container has a healthcheck so the application services can wait until
 # their dependencies are really ready (depends_on: condition: service_healthy).
+#
+# Resilience (HU-28): every container runs with `restart: unless-stopped`, so Docker
+# starts it again when its process exits (crash, ExitOnOutOfMemoryError, host reboot).
+# The healthcheck detects a running service that cannot serve requests; it does not
+# restart it. See docs/operaciones/patrones.md.
 
 services:
   postgres:
     image: postgres:16
     container_name: circleguard-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USERNAME:-admin}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required (deploy/secrets/<environment>-secrets.env)}
@@ -45,6 +51,7 @@ services:
   neo4j:
     image: neo4j:5.26
     container_name: circleguard-neo4j
+    restart: unless-stopped
     ports:
       - "7474:7474"
       - "7687:7687"
@@ -69,6 +76,7 @@ services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.6.0
     container_name: circleguard-zookeeper
+    restart: unless-stopped
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -84,6 +92,7 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.6.0
     container_name: circleguard-kafka
+    restart: unless-stopped
     depends_on:
       zookeeper:
         condition: service_healthy
@@ -110,6 +119,7 @@ services:
   redis:
     image: redis:7.2
     container_name: circleguard-redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
     networks:
@@ -123,6 +133,7 @@ services:
   openldap:
     image: osixia/openldap:1.5.0
     container_name: circleguard-ldap
+    restart: unless-stopped
     ports:
       - "389:389"
       - "636:636"
