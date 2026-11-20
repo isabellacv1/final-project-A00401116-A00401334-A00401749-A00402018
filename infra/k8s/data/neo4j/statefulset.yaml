@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: neo4j
+  namespace: circleguard-data
+  labels:
+    app.kubernetes.io/name: neo4j
+    app.kubernetes.io/component: graph
+    app.kubernetes.io/part-of: circleguard
+    circleguard.io/managed-by: kustomize
+spec:
+  serviceName: neo4j
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: neo4j
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: neo4j
+        app.kubernetes.io/component: graph
+        app.kubernetes.io/part-of: circleguard
+        circleguard.io/managed-by: kustomize
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsUser: 7474
+        runAsGroup: 7474
+        fsGroup: 7474
+      containers:
+        - name: neo4j
+          image: neo4j:5.26
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: bolt
+              containerPort: 7687
+              protocol: TCP
+          env:
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: neo4j-credentials
+                  key: NEO4J_USERNAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: neo4j-credentials
+                  key: NEO4J_PASSWORD
+            - name: NEO4J_AUTH
+              value: "$(DB_USERNAME)/$(DB_PASSWORD)"
+            - name: NEO4J_PLUGINS
+              value: '["apoc"]'
+            - name: NEO4J_server_bolt_listen__address
+              value: ":7687"
+            - name: NEO4J_server_bolt_advertised__address
+              value: "neo4j.circleguard-data.svc.cluster.local:7687"
+            - name: NEO4J_server_http_enabled
+              value: "false"
+            - name: NEO4J_server_https_enabled
+              value: "false"
+            - name: NEO4J_server_memory_heap_initial__size
+              value: "256m"
+            - name: NEO4J_server_memory_heap_max__size
+              value: "512m"
+            - name: NEO4J_server_memory_pagecache_size
+              value: "256m"
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - cypher-shell -a bolt://localhost:7687 -u "$DB_USERNAME" -p "$DB_PASSWORD" 'RETURN 1' >/dev/null 2>&1
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 12
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - cypher-shell -a bolt://localhost:7687 -u "$DB_USERNAME" -p "$DB_PASSWORD" 'RETURN 1' >/dev/null 2>&1
+            initialDelaySeconds: 45
+            periodSeconds: 20
+            timeoutSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 150m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: neo4j-data
