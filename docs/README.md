@@ -18,7 +18,7 @@ prueba y cómo se construye y despliega.
 | Ver los componentes y sus dependencias | [`arquitectura/arquitectura.md`](arquitectura/arquitectura.md) |
 | Saber cómo corre Jenkins y qué hace cada build | [`operaciones/pipeline.md`](operaciones/pipeline.md) |
 | Construir, publicar o desplegar imágenes | [`operaciones/despliegue.md`](operaciones/despliegue.md) |
-| Cambiar configuración por ambiente sin reconstruir imágenes | [`operaciones/configuracion-externa.md`](operaciones/configuracion-externa.md) |
+| Conocer los patrones de configuración, resiliencia y despliegue | [`operaciones/patrones.md`](operaciones/patrones.md) |
 | Entender versiones, tags y releases | [`operaciones/versionado.md`](operaciones/versionado.md) y [`operaciones/release-process.md`](operaciones/release-process.md) |
 | Revisar la estrategia y evidencia de pruebas | [`operaciones/pruebas.md`](operaciones/pruebas.md) |
 | Validar la infraestructura AWS | [`operaciones/infraestructura.md`](operaciones/infraestructura.md) |
@@ -265,7 +265,7 @@ push a dev ─► Build ─► Tests ─► Integración ─► SonarQube ─►
 | [`arquitectura/contexto-tecnico.md`](arquitectura/contexto-tecnico.md) | Análisis técnico: módulos, flujos, persistencia, seguridad, riesgos y bugs corregidos. |
 | [`operaciones/pipeline.md`](operaciones/pipeline.md) | Jenkins, etapas del pipeline y ejecuciones. |
 | [`operaciones/despliegue.md`](operaciones/despliegue.md) | Dockerfiles, Nexus, entornos, promoción y verificación. |
-| [`operaciones/configuracion-externa.md`](operaciones/configuracion-externa.md) | Patrón de configuración externa, inventario de variables, trade-offs y evidencia. |
+| [`operaciones/patrones.md`](operaciones/patrones.md) | Patrones de configuración (External Configuration), resiliencia (healthchecks, restart, retry, circuit breaker) y despliegue (artefacto inmutable, promoción), con trade-offs y evidencia. |
 | [`operaciones/versionado.md`](operaciones/versionado.md) | semantic-release, tags y versiones de imagen. |
 | [`operaciones/release-process.md`](operaciones/release-process.md) | Release notes y GitHub Releases. |
 | [`operaciones/pruebas.md`](operaciones/pruebas.md) | Pruebas unitarias, de integración y E2E. |
@@ -286,7 +286,7 @@ push a dev ─► Build ─► Tests ─► Integración ─► SonarQube ─►
 - **Resuelto (HU-34):** los secretos de desarrollo salieron de los `application.yml` y de los
   compose. La configuración se inyecta por ambiente y los secretos viven en la credencial
   de Jenkins `<ambiente>-app-secrets`, que el despliegue entrega al host. Ver
-  [`operaciones/configuracion-externa.md`](operaciones/configuracion-externa.md).
+  [`operaciones/patrones.md`](operaciones/patrones.md).
 - Las variables de entorno de un contenedor son visibles con `docker inspect`; el acceso al host
   es la frontera de seguridad mientras no se adopte `secrets:` de Compose o Vault.
 
