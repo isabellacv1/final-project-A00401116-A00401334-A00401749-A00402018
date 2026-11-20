@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: circleguard-file-service
+  namespace: circleguard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: circleguard-file-service
+      app.kubernetes.io/instance: file
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: circleguard-file-service
+        app.kubernetes.io/instance: file
+        app.kubernetes.io/component: backend
+        app.kubernetes.io/part-of: circleguard
+    spec:
+      imagePullSecrets:
+        - name: nexus-pull-secret
+      containers:
+        - name: file-service
+          image: 10.20.1.230:8082/circleguard/file-service:1.0.0-dev.10
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8085
+              protocol: TCP
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              valueFrom:
+                configMapKeyRef:
+                  name: circleguard-common-config
+                  key: SPRING_PROFILES_ACTIVE
+          volumeMounts:
+            - name: file-uploads
+              mountPath: /app/uploads
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 20
+            failureThreshold: 3
+            timeoutSeconds: 2
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 2
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 768Mi
+      volumes:
+        - name: file-uploads
+          persistentVolumeClaim:
+            claimName: file-uploads

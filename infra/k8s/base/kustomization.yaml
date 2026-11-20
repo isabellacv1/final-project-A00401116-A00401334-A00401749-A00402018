@@ -6,3 +6,4 @@ resources:
   - limitranges.yaml
   - networkpolicies.yaml
   - rbac-deployer.yaml
+  - apps

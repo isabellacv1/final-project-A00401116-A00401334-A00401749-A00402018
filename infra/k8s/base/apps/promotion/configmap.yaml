@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: circleguard-promotion-config
+  namespace: circleguard
+data:
+  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres.circleguard-data.svc.cluster.local:5432/circleguard_promotion
+  SPRING_DATASOURCE_USERNAME: admin
+  SPRING_NEO4J_URI: bolt://neo4j.circleguard-data.svc.cluster.local:7687
+  SPRING_NEO4J_AUTHENTICATION_USERNAME: neo4j
+  SPRING_DATA_REDIS_HOST: redis.circleguard-data.svc.cluster.local
+  SPRING_DATA_REDIS_PORT: "6379"
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka.circleguard-data.svc.cluster.local:29092

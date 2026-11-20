@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth
+  namespace: circleguard
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: circleguard-auth-service
+    app.kubernetes.io/instance: auth
+  ports:
+    - name: http
+      port: 8180
+      targetPort: http
+      protocol: TCP
