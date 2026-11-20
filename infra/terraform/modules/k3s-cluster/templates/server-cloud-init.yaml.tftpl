@@ -1,0 +1,200 @@
+#cloud-config
+# CircleGuard HU 1 - bootstrap del nodo k3s SERVER (ambiente: ${env})
+# Generado por modules/k3s-cluster con templatefile(); NO contiene secretos.
+#
+# Tratamiento del token de unión (solo PROD): lo genera el propio k3s y se
+# publica a Parameter Store con "--value file://...", de modo que el valor:
+#   - no aparece en user_data ni en el estado/outputs de Terraform,
+#   - no aparece en argumentos de procesos (ps),
+#   - no aparece en stdout ni en /var/log/cloud-init-output.log,
+#   - no se imprime nunca y no se usa "set -x".
+# AWS CLI v2 (versión fijada + SHA256 verificado) se gestiona SOLO en el
+# ambiente que usa Parameter Store (PROD); dev/stage no lo descargan ni lo
+# usan. Reglas: ausente -> instala la fijada; ya la fijada -> reutiliza;
+# v1 / versión incompatible / v2 fuera de las rutas oficiales del instalador
+# -> ABORTA con mensaje accionable (no desinstala ni sobrescribe instalaciones
+# ajenas); v2 oficial con otra versión -> --update con rutas explicitas.
+# El directorio temporal de instalación se limpia con trap (también ante
+# fallos). Si el checksum o la versión final no coinciden, se aborta.
+
+hostname: ${node_name}
+
+write_files:
+  - path: /etc/rancher/k3s/registries.yaml
+    owner: root:root
+    permissions: "0644"
+    content: |
+      mirrors:
+        "${registry_endpoint}":
+          endpoint: ["${registry_scheme}://${registry_endpoint}"]
+
+  - path: /usr/local/sbin/cg-k3s-server-bootstrap.sh
+    owner: root:root
+    permissions: "0755"
+    content: |
+      #!/usr/bin/env bash
+      # Bootstrap del servidor k3s - CircleGuard HU 1 (ambiente ${env})
+      set -euo pipefail
+      export AWS_PAGER=""
+
+      REGION="${region}"
+      K3S_VERSION="${k3s_version}"
+      NODE_NAME="${node_name}"
+      PARAM_NAME="${token_parameter_name}"
+      AWSCLI_VERSION="${awscli_version}"
+      AWSCLI_SHA256="${awscli_sha256}"
+      # Rutas administradas por el instalador oficial de AWS CLI v2 (defaults
+      # del propio instalador) y usadas SIEMPRE explicitas en cada invocacion.
+      AWSCLI_INSTALL_DIR=/usr/local/aws-cli
+      AWSCLI_BIN_DIR=/usr/local/bin
+
+      log() { echo "[cg-k3s-server] $*"; }
+
+      # Extrae "X.Y.Z" de la salida de "aws --version" (v2 escribe en stdout,
+      # v1 en stderr: por eso se captura con 2>&1).
+      version_awscli() { aws --version 2>&1 | sed -n 's/^aws-cli\/\([0-9.]*\).*/\1/p'; }
+
+      # Instala o actualiza AWS CLI v2 FIJADO usando exclusivamente las rutas
+      # del instalador oficial, pasadas explicitamente (--install-dir/--bin-dir).
+      # Si ya existe una instalacion oficial se usa --update (el propio
+      # instalador lo exige); el directorio temporal se limpia via trap, tambien
+      # ante fallos (checksum incorrecto, red caida, etc.).
+      instalar_awscli() {
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          log "descargando AWS CLI v$AWSCLI_VERSION (SHA256 verificado) para Parameter Store"
+          curl -fsSL --retry 3 -o "$work/awscliv2.zip" \
+              "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-$AWSCLI_VERSION.zip"
+          # Checksum obligatorio: si no coincide, sha256sum falla y "set -euo pipefail" detiene todo.
+          echo "$AWSCLI_SHA256  $work/awscliv2.zip" | sha256sum -c -
+          python3 -m zipfile -e "$work/awscliv2.zip" "$work/dist"
+          chmod +x "$work/dist/aws/install" "$work/dist/aws/dist/aws" "$work/dist/aws/dist/aws_completer"
+          if [ -d "$AWSCLI_INSTALL_DIR" ]; then
+              log "actualizando la instalacion oficial $AWSCLI_INSTALL_DIR a v$AWSCLI_VERSION"
+              "$work/dist/aws/install" --update \
+                  --install-dir "$AWSCLI_INSTALL_DIR" \
+                  --bin-dir "$AWSCLI_BIN_DIR"
+          else
+              log "instalacion nueva en $AWSCLI_INSTALL_DIR (rutas oficiales explicitas)"
+              "$work/dist/aws/install" \
+                  --install-dir "$AWSCLI_INSTALL_DIR" \
+                  --bin-dir "$AWSCLI_BIN_DIR"
+          fi
+          hash -r
+          trap - EXIT
+          rm -rf "$work"
+      }
+
+      # Reglas aprobadas en la revision de B4:
+      #   1) ausente         -> instalar la version fijada
+      #   2) ya es la fijada -> reutilizar (idempotente)
+      #   3) v1, version incompatible o v2 fuera de las rutas oficiales
+      #      -> ABORTAR con mensaje accionable; NO se desinstala paquetes ni se
+      #      sobrescribe ninguna instalacion ajena al instalador oficial
+      #   4) v2 oficial con otra version -> --update con rutas explicitas
+      # Si tras instalar/actualizar la version final no es la fijada: aborta.
+      asegurar_awscli() {
+          actual=""
+          if command -v aws >/dev/null 2>&1; then
+              actual="$(version_awscli)" || actual=""
+          fi
+          if [ -z "$actual" ]; then
+              log "AWS CLI ausente: se instalara la version fijada $AWSCLI_VERSION"
+              instalar_awscli
+          elif [ "$actual" = "$AWSCLI_VERSION" ]; then
+              log "AWS CLI v$AWSCLI_VERSION ya disponible: reutilizado (idempotente)"
+              return 0
+          else
+              case "$actual" in
+                  1.*)
+                      log "ERROR: AWS CLI v1 ($actual) detectado en $(command -v aws)."
+                      log "Este bootstrap NO desinstala paquetes ni sobrescribe instalaciones ajenas."
+                      log "Accion: desinstala AWS CLI v1 con tu metodo de instalacion original (p. ej. pip uninstall awscli o el paquete del sistema), siguiendo la guia oficial de AWS, y re-ejecuta el bootstrap."
+                      exit 1
+                      ;;
+                  2.*)
+                      if [ "$(command -v aws)" = "$AWSCLI_BIN_DIR/aws" ] && [ -d "$AWSCLI_INSTALL_DIR" ]; then
+                          log "AWS CLI v$actual distinta de la fijada $AWSCLI_VERSION en rutas oficiales: actualizando con --update explicito"
+                          instalar_awscli
+                      else
+                          log "ERROR: AWS CLI v$actual fuera de las rutas oficiales ($(command -v aws))."
+                          log "Esperado: $AWSCLI_BIN_DIR/aws con la instalacion en $AWSCLI_INSTALL_DIR."
+                          log "Accion: migra esa instalacion al instalador oficial de AWS CLI v2 (o eliminala) y re-ejecuta el bootstrap; aqui no se sobrescribe."
+                          exit 1
+                      fi
+                      ;;
+                  *)
+                      log "ERROR: AWS CLI incompatible ($actual): se requiere la version fijada $AWSCLI_VERSION (2.x)."
+                      log "Accion: instala AWS CLI v2 con el instalador oficial usando la version fijada y re-ejecuta el bootstrap."
+                      exit 1
+                      ;;
+              esac
+          fi
+          final="$(version_awscli)" || final=""
+          if [ "$final" != "$AWSCLI_VERSION" ]; then
+              log "ERROR: version final v$final != fijada v$AWSCLI_VERSION en $AWSCLI_BIN_DIR/aws."
+              log "Accion: revisa $AWSCLI_INSTALL_DIR (instalaciones multiples o PATH) y re-ejecuta el bootstrap."
+              exit 1
+          fi
+          log "AWS CLI v$final verificado"
+      }
+
+      # --- 1) IPs de la instancia via IMDSv2 ---------------------------------
+      IMDS="http://169.254.169.254/latest"
+      IMDS_TOKEN=""
+      i=0
+      while [ "$i" -lt 30 ] && [ -z "$IMDS_TOKEN" ]; do
+          IMDS_TOKEN="$(curl -fsS -X PUT "$IMDS/api/token" \
+              -H "X-aws-ec2-metadata-token-ttl-seconds: 300" 2>/dev/null)" || IMDS_TOKEN=""
+          i=$((i + 1))
+          [ -n "$IMDS_TOKEN" ] || sleep 2
+      done
+      [ -n "$IMDS_TOKEN" ] || { log "IMDSv2 no disponible"; exit 1; }
+
+      meta() { curl -fsS -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" "$IMDS/meta-data/$1"; }
+      PRIV_IP="$(meta local-ipv4)"
+      PUB_IP=""
+      i=0
+      while [ "$i" -lt 30 ] && [ -z "$PUB_IP" ]; do
+          PUB_IP="$(meta public-ipv4 2>/dev/null)" || PUB_IP=""
+          i=$((i + 1))
+          [ -n "$PUB_IP" ] || sleep 2
+      done
+      [ -n "$PUB_IP" ] || { log "sin IP publica tras30 intentos"; exit 1; }
+      log "IP privada $PRIV_IP, IP publica $PUB_IP"
+
+      # --- 2) k3s server con version FIJADA (nunca latest) --------------------
+      log "Instalando k3s server $K3S_VERSION"
+      curl -fsSL https://get.k3s.io | INSTALL_K3S_VERSION="$K3S_VERSION" sh -s - server \
+          --node-name "$NODE_NAME" \
+          --tls-san "$PUB_IP" \
+          --tls-san "$PRIV_IP"
+
+      # --- 3) SOLO PROD: Parameter Store (aqui se instala AWS CLI si hace falta)
+      if [ -n "$PARAM_NAME" ]; then
+          asegurar_awscli
+
+          SRC=/var/lib/rancher/k3s/server/agent-token
+          i=0
+          while [ "$i" -lt 60 ] && [ ! -s "$SRC" ]; do
+              i=$((i + 1))
+              sleep 2
+          done
+          [ -s "$SRC" ] || { log "k3s no genero el archivo de token"; exit 1; }
+          # "file://" hace que el CLI lea el contenido del archivo: el token
+          # NO pasa por argv, ni por variables, ni por la salida del comando.
+          VER="$(aws ssm put-parameter --region "$REGION" --name "$PARAM_NAME" \
+              --type SecureString --overwrite --value "file://$SRC" \
+              --query Version --output text --no-cli-pager)"
+          log "token publicado en $PARAM_NAME (SecureString, version $VER, valor no impreso)"
+      else
+          log "ambiente sin Parameter Store (dev/stage): AWS CLI no se instala ni se usa"
+      fi
+
+      # --- 4) verificacion (solo nombres; sin secretos) ------------------------
+      systemctl is-active --quiet k3s || { log "el servicio k3s no esta activo"; exit 1; }
+      log "nodos: $(k3s kubectl get nodes -o name 2>/dev/null | tr '\n' ' ')"
+      log "bootstrap del server completado"
+
+runcmd:
+  - [ bash, /usr/local/sbin/cg-k3s-server-bootstrap.sh ]

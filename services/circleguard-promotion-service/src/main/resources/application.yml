@@ -49,21 +49,26 @@ logging:
 server:
   port: 8088
 
-# HU-28: health probes used by the container HEALTHCHECK and by the deploy verification.
-#   /actuator/health/liveness  -> the process answers (no dependencies)
-#   /actuator/health/readiness -> the process can serve requests: includes the
-#                                 dependencies this service cannot work without
-# Only the health endpoint is exposed, without details.
+
 management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,info,prometheus
   endpoint:
     health:
       show-details: never
+      show-components: never
       probes:
         enabled: true
       group:
+        liveness:
+          include: livenessState
         readiness:
           include: readinessState,db,neo4j,redis
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true

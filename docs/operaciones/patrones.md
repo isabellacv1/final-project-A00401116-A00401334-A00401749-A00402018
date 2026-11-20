@@ -130,7 +130,9 @@ el impacto en el servicio afectado.
 
 ### 2.3 Detección: verificaciones de salud
 
-Cada servicio expone **solo** `health`, sin detalles (`show-details: never`):
+Cada servicio expone `health`, `info` y `prometheus` (métricas para la observabilidad en
+Kubernetes), sin detalles ni componentes (`show-details` y `show-components: never`). Los
+endpoints sensibles (`env`, `beans`, `heapdump`) no se exponen:
 
 | Endpoint | Pregunta | Incluye |
 |----------|----------|---------|
@@ -139,18 +141,19 @@ Cada servicio expone **solo** `health`, sin detalles (`show-details: never`):
 
 | Servicio | Puerto | Readiness incluye |
 |----------|--------|-------------------|
-| auth | 8180 | PostgreSQL |
+| auth | 8180 | PostgreSQL, LDAP |
 | identity | 8083 | PostgreSQL |
 | promotion | 8088 | PostgreSQL, Neo4j, Redis |
 | form | 8086 | PostgreSQL |
 | gateway | 8087 | Redis |
 | notification | 8082 | — (Kafka y correo son asíncronos/externos) |
 | dashboard | 8084 | PostgreSQL |
-| file | 8085 | Espacio en disco |
+| file | 8085 | — (almacenamiento local en volumen) |
 
-Se excluyen a propósito LDAP en auth (si cae, auth sigue autenticando cuentas locales) y el correo
-en notification (canal externo): incluirlos marcaría como caído un servicio que funciona en modo
-degradado. identity protege todo con JWT, así que `/actuator/health/**` se abrió explícitamente.
+El correo de notification queda fuera (`management.health.mail.enabled: false`): es un canal
+externo y su caída no impide procesar eventos. Los mismos grupos alimentan las sondas de
+Kubernetes. identity protege todo con JWT, así que los endpoints de actuator expuestos se
+abrieron explícitamente en su `SecurityConfig`.
 
 Los ocho Dockerfiles consultan **readiness**, no el puerto. La imagen JRE trae `bash` pero no
 `curl`, así que la petición HTTP se hace por `/dev/tcp`:
@@ -227,7 +230,7 @@ Resultado medido el 2026-11-20 en el stack local completo (15 contenedores): **3
 
 | # | Fallo inyectado | Resultado medido |
 |---|-----------------|------------------|
-| 1 | — | 9 contenedores de aplicación `healthy`; readiness `200` en los 8 servicios; `/actuator/env` → `401` |
+| 1 | — | 9 contenedores de aplicación `healthy`; readiness `200` en los 8 servicios; `/actuator/env` no expuesto (`401`) |
 | 2 | El proceso de auth termina (`kill -TERM 1`) | Docker lo reinició solo (`RestartCount` 1 → 2) y volvió a `healthy` en **17 s** |
 | 3 | Se detiene Redis | gateway: readiness `503`, liveness `200`; `unhealthy` a los **49 s**; al volver Redis, `healthy` en **13 s** sin reiniciarse (`RestartCount` 0 → 0) |
 | 4 | Se detiene promotion | dashboard respondió `200` con el *fallback* en las 8 llamadas: la primera en 668 ms, las siguientes en ~70 ms con el circuito abierto. Al volver promotion (17 s) y cerrarse el circuito, entregó datos reales |

@@ -16,14 +16,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * HU-28: the container healthcheck calls the readiness probe without a token, so
  * identity (which protects every other route with a JWT) must let it through, and
- * only the health endpoint may be exposed.
+ * sensitive actuator endpoints (env, beans, heapdump) must stay unexposed.
  *
  * The test application.yml replaces the main one, so the management settings of
  * src/main/resources/application.yml are repeated here.
  */
 @SpringBootTest(properties = {
-        "management.endpoints.web.exposure.include=health",
+        "management.endpoints.web.exposure.include=health,info,prometheus",
         "management.endpoint.health.show-details=never",
+        "management.endpoint.health.show-components=never",
         "management.endpoint.health.probes.enabled=true",
         "management.endpoint.health.group.readiness.include=readinessState,db"
 })
@@ -54,7 +55,7 @@ class HealthProbesTest {
 
     @Test
     @WithMockUser
-    void otherActuatorEndpointsAreNotExposed() throws Exception {
+    void sensitiveActuatorEndpointsAreNotExposed() throws Exception {
         mockMvc.perform(get("/actuator/env")).andExpect(status().isNotFound());
     }
 

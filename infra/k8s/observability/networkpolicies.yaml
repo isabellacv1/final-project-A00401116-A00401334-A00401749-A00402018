@@ -1,0 +1,32 @@
+# Prometheus, kube-state-metrics and Alloy discover targets through the Kubernetes API, and Prometheus
+# reads the container metrics (cAdvisor) through the API server proxy. In k3s the API server runs
+# on the nodes (port 6443) and is published as the "kubernetes" service (10.43.0.1:443), so the
+# namespace selectors of the base policies do not cover it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-kube-api-egress
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - prometheus
+          - kube-state-metrics
+          - alloy
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.43.0.1/32
+      ports:
+        - protocol: TCP
+          port: 443
+    - to:
+        - ipBlock:
+            cidr: 10.20.0.0/16
+      ports:
+        - protocol: TCP
+          port: 6443

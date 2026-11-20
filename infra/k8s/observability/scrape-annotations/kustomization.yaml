@@ -1,0 +1,23 @@
+# Adds the Prometheus annotations to every CircleGuard backend Deployment, so Prometheus
+# discovers the services and reads /actuator/prometheus. It is a Component: it patches the
+# Deployments of the overlay that includes it, without repeating the annotations in each manifest.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+patches:
+  # Every backend Deployment is named circleguard-<service>-service (the name accepts a regex)
+  - target:
+      kind: Deployment
+      namespace: circleguard
+      name: circleguard-.*-service
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: not-used
+      spec:
+        template:
+          metadata:
+            annotations:
+              prometheus.io/scrape: "true"
+              prometheus.io/path: /actuator/prometheus

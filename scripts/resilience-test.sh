@@ -62,7 +62,7 @@ for port in 8180 8083 8088 8086 8087 8082 8085 8084; do
   check "readiness on :$port answers 200 (got $code)" '[[ "$code" == 200 ]]'
 done
 code=$(http_code "http://$HOST:8083/actuator/env")
-check "only health is exposed (/actuator/env -> $code, not 200)" '[[ "$code" != 200 ]]'
+check "sensitive endpoints are not exposed (/actuator/env -> $code, not 200)" '[[ "$code" != 200 ]]'
 
 # ---------------------------------------------------------------------------
 log "Scenario 2 - crash: the auth process exits"

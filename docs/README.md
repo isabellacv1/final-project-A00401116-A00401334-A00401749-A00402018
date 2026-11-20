@@ -22,6 +22,7 @@ prueba y cómo se construye y despliega.
 | Entender versiones, tags y releases | [`operaciones/versionado.md`](operaciones/versionado.md) y [`operaciones/release-process.md`](operaciones/release-process.md) |
 | Revisar la estrategia y evidencia de pruebas | [`operaciones/pruebas.md`](operaciones/pruebas.md) |
 | Validar la infraestructura AWS | [`operaciones/infraestructura.md`](operaciones/infraestructura.md) |
+| Operar Terraform: estado, planes, drift y recuperación | [`operaciones/terraform.md`](operaciones/terraform.md) |
 | Escribir commits y Pull Requests | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | Revisar la entrega de cada sprint | [`agil/`](agil/) |
 

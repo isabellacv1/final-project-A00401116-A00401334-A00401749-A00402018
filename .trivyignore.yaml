@@ -1,0 +1,9 @@
+misconfigurations:
+  - id: AWS-0132
+    paths:
+      - "backend-bootstrap/main.tf"
+    statement: >-
+      El bucket de estado Terraform utiliza SSE-S3 (AES256), cifrado en reposo
+      gestionado por AWS. La adopción de SSE-KMS con una CMK queda pendiente
+      de una evaluación arquitectónica independiente de HU2.
+    expired_at: 2027-05-17

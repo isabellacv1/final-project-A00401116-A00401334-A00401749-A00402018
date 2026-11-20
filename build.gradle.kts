@@ -51,8 +51,9 @@ subprojects {
         "testCompileOnly"("org.projectlombok:lombok")
         "testAnnotationProcessor"("org.projectlombok:lombok")
         "implementation"("org.jetbrains.kotlin:kotlin-reflect")
-        // HU-28: /actuator/health/{liveness,readiness} feed the container healthchecks.
+        // Health probes (container HEALTHCHECK, Kubernetes) and Prometheus metrics.
         "implementation"("org.springframework.boot:spring-boot-starter-actuator")
+        "runtimeOnly"("io.micrometer:micrometer-registry-prometheus")
         "testImplementation"("org.springframework.boot:spring-boot-starter-test")
         "testRuntimeOnly"("com.h2database:h2")
     }
