@@ -24,7 +24,6 @@ class IdentityMappingRepositoryTest {
     void shouldSaveAndRetrieveWithAutomaticEncryption() {
         IdentityMapping mapping = IdentityMapping.builder()
                 .realIdentity("test-user")
-                .anonymousId(UUID.randomUUID())
                 .identityHash("hash123")
                 .salt("salt123")
                 .build();
@@ -48,7 +47,6 @@ class IdentityMappingRepositoryTest {
         
         IdentityMapping mapping = IdentityMapping.builder()
                 .realIdentity(realIdentity)
-                .anonymousId(UUID.randomUUID())
                 .identityHash(hash)
                 .salt(salt)
                 .build();
