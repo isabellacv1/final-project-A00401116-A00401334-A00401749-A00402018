@@ -35,16 +35,17 @@ Configuración de los servicios agregados en la Parte 2:
 
 Los ocho Dockerfiles de `services/` siguen el mismo patrón de dos etapas:
 
-1. **Build:** `eclipse-temurin:21.0.8_9-jdk-jammy`. Copia `gradlew`, `gradle/`,
+1. **Build:** `eclipse-temurin:21.0.13_9-jdk-jammy`. Copia `gradlew`, `gradle/`,
    `settings.gradle.kts`, `build.gradle.kts` y `services/`, y ejecuta
    `./gradlew :services:<módulo>:bootJar -x test`. Las pruebas no se ejecutan dentro del
    build de la imagen.
-2. **Runtime:** `eclipse-temurin:21.0.8_9-jre-jammy`. Copia el JAR como `app.jar`, crea un
+2. **Runtime:** `eclipse-temurin:21.0.13_9-jre-jammy`. Copia el JAR como `app.jar`, crea un
    usuario de sistema `app` y ejecuta el proceso sin privilegios con
-   `java -XX:MaxRAMPercentage=75 -jar /app/app.jar`.
+   `java -XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError -jar /app/app.jar`.
 
-Cada imagen declara `EXPOSE` en su puerto y un `HEALTHCHECK` que abre una conexión TCP
-contra `127.0.0.1:<puerto>` usando `bash` (el JRE base lo incluye).
+Cada imagen declara `EXPOSE` en su puerto y un `HEALTHCHECK` que consulta
+`/actuator/health/readiness` por HTTP usando `bash` (el JRE base no trae `curl`). Los
+detalles están en [`patrones.md`](patrones.md#2-resiliencia).
 
 El Dockerfile de `file` además crea `/app/uploads` con dueño `app`: el servicio crea ese
 directorio al arrancar y, como `/app` pertenece a root, el usuario sin privilegios no podría
@@ -56,10 +57,35 @@ crearlo.
 
 1. **Build:** `node:22.21.1-alpine3.22`. Instala dependencias con `npm ci` y genera el sitio
    estático con `npx expo export --platform web --output-dir dist`.
-2. **Runtime:** `nginxinc/nginx-unprivileged:1.28.0-alpine3.21`. Sirve `dist` en el puerto
+2. **Runtime:** `nginxinc/nginx-unprivileged:1.31.7-alpine3.24`. Sirve `dist` en el puerto
    8080 y ejecuta `docker/40-env-config.sh` al arrancar para generar `env-config.js` con las
    URLs de los servicios. Por eso la misma imagen funciona en todos los entornos sin
-   reconstruirla: las URLs se inyectan como variables de entorno en el contenedor.
+   reconstruirla: las URLs se inyectan como variables de entorno en el contenedor. La etapa
+   ejecuta `apk upgrade` (como root, y vuelve al usuario sin privilegios 101) para aplicar
+   los parches de Alpine publicados después de la etiqueta base.
+
+### Seguridad de las imágenes
+
+El pipeline escanea cada imagen con Trivy antes de publicarla y bloquea cualquier hallazgo
+HIGH o CRITICAL. Para mantener las imágenes limpias:
+
+| Capa | Cómo se corrige |
+|------|-----------------|
+| Sistema operativo (servicios) | Etiqueta reciente de `eclipse-temurin` en las dos etapas |
+| Sistema operativo (web) | Etiqueta reciente de `nginx-unprivileged` + `apk upgrade` |
+| Librerías Java | Spring Boot 3.5.x y, en `build.gradle.kts`, versiones de parche más recientes para las librerías transitivas reportadas (Jackson, Tomcat, Netty, PostgreSQL, FreeMarker, snappy, lz4, commons-io), siempre dentro de la misma línea |
+
+Las vulnerabilidades sin corrección disponible para la línea en uso y que el código no puede
+alcanzar se registran en `.trivyignore.yaml` (sección `vulnerabilities:`) con su justificación
+(`statement`) y una fecha de vencimiento (`expired_at`); al vencer, Trivy vuelve a bloquear y
+obliga a revisarlas. Para escanear en local con la misma política:
+
+```bash
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+  -v "$PWD/.trivyignore.yaml:/work/.trivyignore.yaml:ro" aquasec/trivy:0.76.2 image \
+  --scanners vuln --severity HIGH,CRITICAL --ignorefile /work/.trivyignore.yaml \
+  --exit-code 1 circleguard/auth-service:1.0.0
+```
 
 ### Contextos de build
 

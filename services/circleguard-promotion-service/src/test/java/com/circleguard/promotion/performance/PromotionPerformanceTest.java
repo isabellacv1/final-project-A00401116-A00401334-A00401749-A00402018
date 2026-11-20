@@ -56,7 +56,7 @@ public class PromotionPerformanceTest {
     @Autowired
     private HealthStatusService healthStatusService;
     
-    @org.springframework.boot.test.mock.mockito.MockBean
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
     private org.springframework.kafka.core.KafkaTemplate<String, Object> kafkaTemplate;
 
     @Autowired

@@ -1,9 +1,9 @@
 plugins {
-    id("org.springframework.boot") version "3.2.4" apply false
-    id("io.spring.dependency-management") version "1.1.4" apply false
-    kotlin("jvm") version "1.9.24" apply false
-    kotlin("plugin.spring") version "1.9.24" apply false
-    kotlin("plugin.jpa") version "1.9.24" apply false
+    id("org.springframework.boot") version "3.5.16" apply false
+    id("io.spring.dependency-management") version "1.1.7" apply false
+    kotlin("jvm") version "1.9.25" apply false
+    kotlin("plugin.spring") version "1.9.25" apply false
+    kotlin("plugin.jpa") version "1.9.25" apply false
     id("org.sonarqube") version "6.2.0.5505"
 }
 
@@ -46,9 +46,47 @@ subprojects {
         }
     }
 
+    // Jackson above the version managed by Spring Boot 3.5.16 (2.21.4): CVE-2026-68497 is
+    // fixed in 2.21.6. The property drives the io.spring.dependency-management plugin and
+    // the platform below drives Gradle's own resolution; both must agree.
+    val jacksonVersion = "2.21.8"
+    extra["jackson-bom.version"] = jacksonVersion
+
+    // Security patches of transitive libraries, reported by the Trivy image scan. Each one
+    // stays on the line Spring Boot 3.5.16 already uses (only the patch version changes).
+    // Libraries managed by the Boot BOM are raised through its version properties; the
+    // rest through dependency constraints.
+    val bomOverrides = mapOf(
+        "tomcat.version" to "10.1.62",        // CVE-2026-55276, -65182, -65637, -65905, -68525, -53404
+        "netty.version" to "4.1.141.Final",   // CVE-2026-75595, -59901, -55831, -55833, -56745, -56819
+        "postgresql.version" to "42.7.14",    // CVE-2026-54291
+        "freemarker.version" to "2.3.35"      // CVE-2026-84939
+    )
+    bomOverrides.forEach { (property, version) -> extra[property] = version }
+    val patchedLibraries = listOf(
+        "org.apache.tomcat.embed:tomcat-embed-core:10.1.62",
+        "org.apache.tomcat.embed:tomcat-embed-el:10.1.62",
+        "org.apache.tomcat.embed:tomcat-embed-websocket:10.1.62",
+        "io.netty:netty-bom:4.1.141.Final",
+        "org.postgresql:postgresql:42.7.14",
+        "org.freemarker:freemarker:2.3.35",
+        "org.xerial.snappy:snappy-java:1.1.10.12", // CVE-2026-108106, -93451 (Kafka client)
+        "at.yawk.lz4:lz4-java:1.11.4",             // CVE-2026-106451 (Kafka client)
+        "commons-io:commons-io:2.22.0"             // CVE-2024-47554 (notification)
+    )
+
     dependencies {
-        "implementation"(platform("org.springframework.boot:spring-boot-dependencies:3.2.4"))
-        "testImplementation"(platform("org.springframework.boot:spring-boot-dependencies:3.2.4"))
+        "implementation"(platform(org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES))
+        "testImplementation"(platform(org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES))
+        "implementation"(platform("com.fasterxml.jackson:jackson-bom:$jacksonVersion"))
+        "testImplementation"(platform("com.fasterxml.jackson:jackson-bom:$jacksonVersion"))
+        patchedLibraries.forEach { coordinates ->
+            if (coordinates.substringAfter(':').substringBefore(':').endsWith("-bom")) {
+                "implementation"(platform(coordinates))
+            } else {
+                constraints { "implementation"(coordinates) }
+            }
+        }
         "compileOnly"("org.projectlombok:lombok")
         "annotationProcessor"("org.projectlombok:lombok")
         "testCompileOnly"("org.projectlombok:lombok")

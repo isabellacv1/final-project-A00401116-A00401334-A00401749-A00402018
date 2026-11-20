@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # ---------- Build stage ----------
-FROM eclipse-temurin:21.0.8_9-jdk-jammy AS builder
+FROM eclipse-temurin:21.0.13_9-jdk-jammy AS builder
 
 WORKDIR /workspace
 
@@ -17,7 +17,7 @@ RUN --mount=type=cache,target=/root/.gradle,sharing=locked \
       -x test --no-daemon --console=plain
 
 # ---------- Runtime stage ----------
-FROM eclipse-temurin:21.0.8_9-jre-jammy
+FROM eclipse-temurin:21.0.13_9-jre-jammy
 
 RUN groupadd --system app && useradd --system --gid app --home-dir /app app
 

@@ -23,7 +23,14 @@ COPY . .
 RUN npx expo export --platform web --output-dir dist
 
 # ---------- Runtime stage ----------
-FROM nginxinc/nginx-unprivileged:1.28.0-alpine3.21
+FROM nginxinc/nginx-unprivileged:1.31.7-alpine3.24
+
+# Apply the security patches Alpine published after this tag was built (reported by the
+# Trivy image scan). Root is needed only for apk; the image runs as the unprivileged
+# nginx user (101) again right after.
+USER root
+RUN apk upgrade --no-cache
+USER 101
 
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --chmod=755 docker/40-env-config.sh /docker-entrypoint.d/40-env-config.sh
