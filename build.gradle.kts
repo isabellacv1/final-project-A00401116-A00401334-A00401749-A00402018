@@ -34,6 +34,9 @@ val coverageGatedServices = setOf(
 )
 
 subprojects {
+    // Versions of libraries that the Spring Boot BOM does not manage, declared once.
+    extra["resilience4jVersion"] = "2.2.0"
+
     apply(plugin = "java")
     apply(plugin = "org.jetbrains.kotlin.jvm")
     apply(plugin = "jacoco")
