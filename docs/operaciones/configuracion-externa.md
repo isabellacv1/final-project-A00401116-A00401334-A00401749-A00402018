@@ -77,7 +77,7 @@ YAML un efecto que produce Spring.
 | Alternativa | Por qué no se elige |
 |-------------|---------------------|
 | **Feature Toggle** | Requiere lógica de negocio nueva por bandera y no administra secretos, credenciales ni URLs. El problema de CircleGuard no es habilitar funcionalidades. |
-| **Spring Profiles** (`application-<perfil>.yml`) | El valor sigue dentro de la imagen: cambiarlo exige reconstruir. Además serían 24 archivos con riesgo de divergencia. Ver 5.5. |
+| **Spring Profiles** (`application-<perfil>.yml`) | El valor sigue dentro de la imagen: cambiarlo exige reconstruir. Además serían 24 archivos con riesgo de divergencia. Ver 5.1. |
 | **Spring Cloud Config Server** | Añade un componente desplegado, un repositorio de configuración y un punto único de fallo; no resuelve por sí mismo los secretos. |
 | **HashiCorp Vault** | Solución objetivo para secretos en una organización real, pero exige operar un servidor y autenticación de servicios; excede la HU. Se documenta como evolución. |
 
@@ -143,6 +143,11 @@ Así el secreto no viaja en Git ni en la imagen, y el contrato de variables es e
 Un secreto ausente debe impedir el arranque, nunca degradar a un valor de desarrollo: `${JWT_SECRET}`
 sin default en el YAML y `:?` en el compose. Los defaults solo se admiten en lo no sensible y
 existen para que `bootRun` y el compose local funcionen sin configuración.
+
+La regla aplica también al código Java: los `@Value` de propiedades sensibles no declaran
+default (`spring.ldap.password` en `auth`, `vault.hash-salt` en `identity`). Si la propiedad
+falta, Spring aborta el arranque con `Could not resolve placeholder` en lugar de usar un valor
+conocido. Las pruebas definen sus propios valores en `src/test/resources`.
 
 ### 5.4 Variables compartidas entre servicios
 
@@ -276,7 +281,7 @@ web.
 | Digest publicado | `docker image inspect ... --format '{{json .RepoDigests}}'` | El artefacto del registro no cambió |
 | Variables efectivas | `docker exec <servicio> env \| grep -E '^(JWT_EXPIRATION\|LOG_LEVEL)='` | Solo se inspecciona lo no sensible |
 | Comportamiento | vigencia del JWT, líneas de log | El comportamiento cambió |
-| Ausencia de literales | `git grep -n "my-super-secret\|my-qr-secret"` sin resultados | Los secretos salieron del repositorio |
+| Ausencia de literales | `git grep -n "my-super-secret\|my-qr-secret" -- '*/src/main/*'` sin resultados | Los secretos salieron del código productivo (solo quedan en `src/test`) |
 
 No se captura `docker compose config` como evidencia: resuelve e imprime los valores, incluidos
 los secretos.
@@ -288,7 +293,7 @@ los secretos.
 | Se selecciona un patrón y se justifica | 3 y 4 | Comparación con Feature Toggle, perfiles, Config Server y Vault |
 | Lo sensible y lo dependiente del ambiente sale del código | 5 y 6 | Inventario, archivos por ambiente y `git grep` sin literales |
 | Cambio de comportamiento sin reconstruir la imagen | 8 | Huella de imagen idéntica, vigencia del JWT, logs, `env-config.js` |
-| Propósito, trade-offs y evidencia documentados | 1, 7 y 8 | Este documento y el registro de 8.4 |
+| Propósito, trade-offs y evidencia documentados | 1, 7 y 8 | Este documento y el registro de 8.5 |
 
 ## 10. Referencias
 
