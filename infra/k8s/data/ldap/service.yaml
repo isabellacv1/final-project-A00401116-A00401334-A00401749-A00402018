@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: openldap
+  namespace: circleguard-data
+  labels:
+    app.kubernetes.io/name: openldap
+    app.kubernetes.io/component: directory
+    app.kubernetes.io/part-of: circleguard
+    circleguard.io/managed-by: kustomize
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: openldap
+  ports:
+    - name: ldap
+      port: 389
+      targetPort: ldap
+      protocol: TCP
