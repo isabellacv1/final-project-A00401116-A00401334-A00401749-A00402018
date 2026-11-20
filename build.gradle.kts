@@ -34,6 +34,9 @@ val coverageGatedServices = setOf(
 )
 
 subprojects {
+    // Versions of libraries that the Spring Boot BOM does not manage, declared once.
+    extra["resilience4jVersion"] = "2.2.0"
+
     apply(plugin = "java")
     apply(plugin = "org.jetbrains.kotlin.jvm")
     apply(plugin = "jacoco")
@@ -51,6 +54,7 @@ subprojects {
         "testCompileOnly"("org.projectlombok:lombok")
         "testAnnotationProcessor"("org.projectlombok:lombok")
         "implementation"("org.jetbrains.kotlin:kotlin-reflect")
+        // Health probes (container HEALTHCHECK, Kubernetes) and Prometheus metrics.
         "implementation"("org.springframework.boot:spring-boot-starter-actuator")
         "runtimeOnly"("io.micrometer:micrometer-registry-prometheus")
         "testImplementation"("org.springframework.boot:spring-boot-starter-test")

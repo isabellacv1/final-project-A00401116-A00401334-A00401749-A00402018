@@ -17,6 +17,11 @@
 # (postgres, neo4j, redis, kafka, openldap, identity, ...). Kafka uses the
 # INTERNAL listener on kafka:29092 because the host listener advertises
 # localhost:9092 and would be unreachable from inside a container.
+#
+# Resilience (HU-28): every container runs with `restart: unless-stopped`, so Docker
+# starts it again when its process exits (crash, ExitOnOutOfMemoryError, host reboot).
+# The healthcheck detects a running service that cannot serve requests; it does not
+# restart it. See docs/operaciones/patrones.md.
 
 services:
   auth:
@@ -25,6 +30,7 @@ services:
       context: .
       dockerfile: services/circleguard-auth-service/Dockerfile
     container_name: circleguard-auth-service
+    restart: unless-stopped
     ports:
       - "8180:8180"
     environment:
@@ -57,6 +63,7 @@ services:
       context: .
       dockerfile: services/circleguard-identity-service/Dockerfile
     container_name: circleguard-identity-service
+    restart: unless-stopped
     ports:
       - "8083:8083"
     environment:
@@ -83,6 +90,7 @@ services:
       context: .
       dockerfile: services/circleguard-promotion-service/Dockerfile
     container_name: circleguard-promotion-service
+    restart: unless-stopped
     ports:
       - "8088:8088"
     environment:
@@ -115,6 +123,7 @@ services:
       context: .
       dockerfile: services/circleguard-form-service/Dockerfile
     container_name: circleguard-form-service
+    restart: unless-stopped
     ports:
       - "8086:8086"
     environment:
@@ -137,6 +146,7 @@ services:
       context: .
       dockerfile: services/circleguard-gateway-service/Dockerfile
     container_name: circleguard-gateway-service
+    restart: unless-stopped
     ports:
       - "8087:8087"
     environment:
@@ -156,6 +166,7 @@ services:
       context: .
       dockerfile: services/circleguard-notification-service/Dockerfile
     container_name: circleguard-notification-service
+    restart: unless-stopped
     ports:
       - "8082:8082"
     environment:
@@ -175,6 +186,7 @@ services:
       context: .
       dockerfile: services/circleguard-file-service/Dockerfile
     container_name: circleguard-file-service
+    restart: unless-stopped
     ports:
       - "8085:8085"
     environment:
@@ -191,6 +203,7 @@ services:
       context: .
       dockerfile: services/circleguard-dashboard-service/Dockerfile
     container_name: circleguard-dashboard-service
+    restart: unless-stopped
     ports:
       - "8084:8084"
     environment:
@@ -211,6 +224,7 @@ services:
       context: mobile
       dockerfile: Dockerfile
     container_name: circleguard-web
+    restart: unless-stopped
     # Published on 8081 because the services' CORS policy only accepts
     # browser requests from http://localhost:8081 (and :8080).
     ports:

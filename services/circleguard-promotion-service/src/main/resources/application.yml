@@ -33,6 +33,10 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      # HU-28: fail in 2 s instead of the 60 s default, so a Redis outage is
+      # reported by the health probe (503) instead of hanging it.
+      timeout: 2s
+      connect-timeout: 2s
 
 jwt:
   # Debe coincidir con el secret de auth (valida los tokens que emite auth).

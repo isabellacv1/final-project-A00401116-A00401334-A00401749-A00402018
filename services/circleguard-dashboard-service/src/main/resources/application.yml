@@ -46,3 +46,33 @@ management:
     distribution:
       percentiles-histogram:
         http.server.requests: true
+
+# HU-28: retry and circuit breaker for the calls to promotion-service.
+#   retry:           3 attempts, 500 ms apart, only on I/O errors (connection refused,
+#                    timeout). A 4xx answer is a real answer and is not retried.
+#   circuit breaker: opens when 50 % of the last 10 calls failed (at least 5 calls),
+#                    stays open 30 s answering immediately, then lets 2 test calls
+#                    through (half-open) to decide whether to close again.
+resilience4j:
+  retry:
+    instances:
+      promotion:
+        max-attempts: 3
+        wait-duration: 500ms
+        retry-exceptions:
+          - org.springframework.web.client.ResourceAccessException
+        ignore-exceptions:
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+  circuitbreaker:
+    instances:
+      promotion:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 2
+        automatic-transition-from-open-to-half-open-enabled: true
+        record-exceptions:
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpServerErrorException
