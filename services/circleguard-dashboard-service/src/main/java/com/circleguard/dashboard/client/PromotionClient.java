@@ -8,6 +8,8 @@ import io.github.resilience4j.retry.RetryRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
@@ -31,6 +33,8 @@ import java.util.function.Supplier;
 public class PromotionClient {
 
     static final String INSTANCE = "promotion";
+    private static final ParameterizedTypeReference<Map<String, Object>> JSON_OBJECT =
+            new ParameterizedTypeReference<>() {};
 
     private final RestTemplate restTemplate;
     private final String promotionServiceUrl;
@@ -56,26 +60,27 @@ public class PromotionClient {
         this.restTemplate = restTemplate;
     }
 
-    @SuppressWarnings("unchecked")
     public Map<String, Object> getHealthStats() {
         return call(
-                () -> restTemplate.getForObject(promotionServiceUrl + "/api/v1/health-status/stats", Map.class),
+                () -> get(promotionServiceUrl + "/api/v1/health-status/stats"),
                 () -> Map.of("error", "Service unavailable", "timestamp", new Date()),
                 "health stats");
     }
 
-    @SuppressWarnings("unchecked")
     public Map<String, Object> getHealthStatsByDepartment(String department) {
         return call(
-                () -> restTemplate.getForObject(
-                        promotionServiceUrl + "/api/v1/health-status/stats/department/" + department, Map.class),
+                () -> get(promotionServiceUrl + "/api/v1/health-status/stats/department/" + department),
                 () -> Map.of("error", "Service unavailable", "department", department, "timestamp", new Date()),
                 "department stats");
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private Map<String, Object> call(Supplier<Map> request, Supplier<Map<String, Object>> fallback, String what) {
-        Supplier<Map> guarded = Retry.decorateSupplier(retry,
+    private Map<String, Object> get(String url) {
+        return restTemplate.exchange(url, HttpMethod.GET, null, JSON_OBJECT).getBody();
+    }
+
+    private Map<String, Object> call(Supplier<Map<String, Object>> request,
+                                     Supplier<Map<String, Object>> fallback, String what) {
+        Supplier<Map<String, Object>> guarded = Retry.decorateSupplier(retry,
                 CircuitBreaker.decorateSupplier(circuitBreaker, request));
         try {
             return guarded.get();

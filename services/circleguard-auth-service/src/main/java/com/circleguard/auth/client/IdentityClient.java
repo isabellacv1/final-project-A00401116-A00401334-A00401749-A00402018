@@ -6,6 +6,9 @@ import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
@@ -27,6 +30,8 @@ import java.util.function.Supplier;
 public class IdentityClient {
 
     static final String INSTANCE = "identity";
+    private static final ParameterizedTypeReference<Map<String, Object>> JSON_OBJECT =
+            new ParameterizedTypeReference<>() {};
 
     private final RestTemplate restTemplate;
     private final String identityUrl;
@@ -55,11 +60,11 @@ public class IdentityClient {
         this.retry = retry;
     }
 
-    @SuppressWarnings("rawtypes")
     public UUID getAnonymousId(String realIdentity) {
         Map<String, String> request = Map.of("realIdentity", realIdentity);
-        Supplier<Map> call = () -> restTemplate.postForObject(identityUrl, request, Map.class);
-        Map response = Retry.decorateSupplier(retry,
+        Supplier<Map<String, Object>> call = () -> restTemplate.exchange(
+                identityUrl, HttpMethod.POST, new HttpEntity<>(request), JSON_OBJECT).getBody();
+        Map<String, Object> response = Retry.decorateSupplier(retry,
                 CircuitBreaker.decorateSupplier(circuitBreaker, call)).get();
         return UUID.fromString(response.get("anonymousId").toString());
     }
