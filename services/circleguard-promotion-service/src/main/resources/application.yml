@@ -33,6 +33,10 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      # HU-28: fail in 2 s instead of the 60 s default, so a Redis outage is
+      # reported by the health probe (503) instead of hanging it.
+      timeout: 2s
+      connect-timeout: 2s
 
 jwt:
   # Debe coincidir con el secret de auth (valida los tokens que emite auth).
@@ -44,3 +48,22 @@ logging:
 
 server:
   port: 8088
+
+# HU-28: health probes used by the container HEALTHCHECK and by the deploy verification.
+#   /actuator/health/liveness  -> the process answers (no dependencies)
+#   /actuator/health/readiness -> the process can serve requests: includes the
+#                                 dependencies this service cannot work without
+# Only the health endpoint is exposed, without details.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db,neo4j,redis

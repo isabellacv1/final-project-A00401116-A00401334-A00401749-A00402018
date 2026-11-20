@@ -13,3 +13,22 @@ logging:
 
 server:
   port: 8085
+
+# HU-28: health probes used by the container HEALTHCHECK and by the deploy verification.
+#   /actuator/health/liveness  -> the process answers (no dependencies)
+#   /actuator/health/readiness -> the process can serve requests: includes the
+#                                 dependencies this service cannot work without
+# Only the health endpoint is exposed, without details.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,diskSpace
