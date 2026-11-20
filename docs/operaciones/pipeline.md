@@ -109,7 +109,14 @@ feature, que Jenkins empezaba a construir al cerrarse el PR. Con el filtro solo 
 | Pruebas | `./gradlew test --continue` | 45 min |
 | Pruebas de integración | `./gradlew integrationTest --continue` | 30 min |
 | SonarQube | análisis + quality gate | con `sonar: true` |
-| Publicar imágenes | `docker build` + `docker push` a Nexus | 40 min (`publish: true`) |
+| Terraform validate | `terraform fmt -check` + `terraform init -backend=false` + `terraform validate` | con `terraformValidate: true` |
+| Trivy IaC | `trivy config` (HIGH,CRITICAL bloquea el build) | con `trivyScan: true` |
+| Terraform plan DEV | `terraform init -backend=true` + `terraform plan -out` sobre `infra/terraform/envs/dev` | 20 min (`terraformPlan: true`, rama `dev`) |
+| Terraform plan PROD | igual, pero sobre `infra/terraform/envs/prod` | 20 min (**deshabilitado**: `terraformApplyProd: false`) |
+| Terraform approval PROD | `input` manual con `submitter` y 30 min para responder | 30 min (**deshabilitado**: `terraformApproval: false` y `terraformApprovalProd: false`) |
+| Terraform apply DEV | `terraform apply -lock=true` sobre el plan del **mismo** build, sin aprobación | 60 min (`terraformApply: true`, rama `dev`) |
+| Terraform apply PROD | `terraform apply -lock=true` solo con una aprobación válida de ese mismo build | 60 min (**deshabilitado**: `terraformApplyProd: false`) |
+| Publicar imágenes | `docker build` + `docker push` a Nexus (con escaneo Trivy de la imagen entre ambos) | 40 min (`publish: true` + `trivyImageScan: true`, ramas `dev`/`main`) |
 | Despliegue | SSH al entorno, `docker compose pull` + `up -d --wait` | 20 min (`deploy: true`, rama en `deployBranches`) |
 | Verificar despliegue | Comprobación HTTP de los nueve componentes con reintentos | 15 min (`deploy: true`) |
 | Smoke tests | Comprobaciones HTTP funcionales contra el host destino | 10 min (`deploy: true`) |
@@ -120,6 +127,13 @@ feature, que Jenkins empezaba a construir al cerrarse el PR. Con el filtro solo 
 > Las etapas de despliegue, verificación, smoke tests, E2E y promoción solo se ejecutan en la
 > rama `dev` (`deployBranches`). En `main` el pipeline construye, prueba, analiza y publica
 > imágenes, pero no despliega.
+>
+> Las etapas de IaC tienen su **propio gating**: `Terraform validate`, `Trivy IaC`,
+> `Terraform plan DEV`, `Terraform apply DEV` y el escaneo de imágenes
+> (`Trivy Image`) están habilitadas en el `Jenkinsfile`; `Terraform plan PROD`,
+> `Terraform approval PROD` y `Terraform apply PROD` siguen **deshabilitados**. Las de
+> PROD correrían solo en `main` (`terraformApplyProdBranches`) y únicamente si se
+> activan `terraformApplyProd`, `terraformApproval` y `terraformApprovalProd` a la vez.
 
 ### Diagrama del pipeline
 
@@ -133,6 +147,10 @@ flowchart TD
     Tests[Pruebas unitarias<br/>./gradlew test --continue]
     Integration[Pruebas de integración<br/>./gradlew integrationTest --continue]
     Sonar[Análisis SonarQube<br/>y Quality Gate]
+    TfVal[Terraform validate<br/>fmt + init + validate]
+    TrivyIaC[Trivy IaC<br/>trivy config]
+    TfPlan[Terraform plan DEV<br/>init + plan -out]
+    TfApply[Terraform apply DEV<br/>plan del mismo build]
     Publish[Construir y publicar imágenes versionadas<br/>Nexus]
     Branch{¿Rama dev o main?}
     Deploy[Despliegue automático a dev]
@@ -146,7 +164,7 @@ flowchart TD
     Status[Publicar estado en GitHub<br/>y reportes de pruebas]
     Failure[Detener etapas posteriores<br/>notificar fallo en Discord]
 
-    Change --> Webhook --> Jenkins --> Checkout --> Build --> Tests --> Integration --> Sonar --> Publish --> Branch
+    Change --> Webhook --> Jenkins --> Checkout --> Build --> Tests --> Integration --> Sonar --> TfVal --> TrivyIaC --> TfPlan --> TfApply --> Publish --> Branch
     Branch -->|Otras ramas o PR| Status
     Branch -->|dev| Deploy --> Verify --> Smoke --> E2E --> Stage --> Approval
     Branch -->|main| Status
@@ -157,6 +175,10 @@ flowchart TD
     Tests -. fallo .-> Failure
     Integration -. fallo .-> Failure
     Sonar -. falla Quality Gate .-> Failure
+    TfVal -. fallo .-> Failure
+    TrivyIaC -. fallo .-> Failure
+    TfPlan -. fallo .-> Failure
+    TfApply -. fallo .-> Failure
     Publish -. fallo .-> Failure
     Deploy -. fallo .-> Failure
     Verify -. fallo .-> Failure
@@ -167,10 +189,16 @@ flowchart TD
     Failure --> Status
 ```
 
-El `Jenkinsfile` habilita pruebas de integración, SonarQube, publicación,
-despliegue, E2E y promoción. La publicación se limita a `dev` y `main`; solo `dev`
-se despliega automáticamente. Las etapas posteriores dependen del éxito de las
-anteriores. La promoción a producción requiere aprobación manual.
+El `Jenkinsfile` habilita pruebas de integración, SonarQube, la validación de
+Terraform, el escaneo IaC, el plan y el apply de DEV, la publicación, el
+despliegue, E2E y la promoción. La publicación se limita a `dev` y `main`; solo
+`dev` se despliega automáticamente. Las etapas posteriores dependen del éxito de
+las anteriores. La promoción a producción requiere aprobación manual.
+
+> El diagrama no dibuja `Terraform approval` ni las etapas de PROD
+> (`Terraform plan PROD` y `Terraform apply PROD`), que están deshabilitados:
+> ocupan el mismo punto que `Terraform plan DEV`, antes de `Publicar imágenes`,
+> y su orden exacto está en la tabla anterior.
 
 ### Promoción de versiones (HU-14)
 

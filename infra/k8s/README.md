@@ -1,8 +1,8 @@
 # CircleGuard — configuración base de Kubernetes
 
-Esta carpeta prepara K3s para CircleGuard e incluye los manifiestos para desplegar los ocho servicios backend. No despliega bases de datos: esas dependencias se consumen desde `circleguard-data`.
+Esta carpeta prepara K3s para CircleGuard e incluye los manifiestos para desplegar los ocho servicios backend y el middleware del que dependen. Los componentes de datos viven en `data/` y se aplican por separado: los overlays solo incluyen `base/` y `observability/`.
 
-Incluye namespaces, cuotas, límites, reglas de red, un usuario de despliegue y los manifiestos de aplicación. No modifica Terraform, AWS ni Jenkins. K3s ya trae Traefik y `local-path`; aquí no se cambian.
+Incluye namespaces, cuotas, límites, reglas de red, un usuario de despliegue, manifiestos de aplicación y manifiestos de datos. Terraform y AWS se configuran fuera de esta carpeta; el pipeline se configura en el `Jenkinsfile` raíz. K3s ya trae Traefik y `local-path`; aquí no se cambian.
 
 ## 1. Estructura
 
@@ -26,6 +26,15 @@ infra/k8s/
 │   ├── networkpolicies.yaml
 │   ├── rbac-deployer.yaml
 │   └── kustomization.yaml
+├── data/                   # PostgreSQL, Neo4j, Redis, ZooKeeper, Kafka y OpenLDAP
+│   ├── kustomization.yaml
+│   ├── postgres/
+│   ├── neo4j/
+│   ├── redis/
+│   ├── zookeeper/
+│   ├── kafka/
+│   └── ldap/
+├── observability/          # Prometheus, Grafana, Loki y Alloy
 ├── overlays/
 │   ├── dev/kustomization.yaml
 │   ├── stage/kustomization.yaml
@@ -34,7 +43,9 @@ infra/k8s/
 ```
 
 - `base/`: configuración común para los tres ambientes, incluidos los manifiestos de aplicación en `base/apps/`.
-- `overlays/`: ajustes pequeños por ambiente. `prod` tiene más recursos; `dev` y `stage` usan los valores base.
+- `data/`: middleware de HU-25 (PostgreSQL, Neo4j, Redis, ZooKeeper, Kafka y OpenLDAP). No lo incluyen los overlays; se aplica como root independiente.
+- `observability/`: métricas y dashboards (Prometheus, Grafana) y logs centralizados (Loki, Alloy). Cada overlay lo incluye. Ver [`metrics.md`](../../docs/observability/metrics.md) y [`logs.md`](../../docs/observability/logs.md).
+- `overlays/`: ajustes por ambiente; además de `base` y `observability`, contienen las transformaciones de imágenes de las ocho aplicaciones. `prod` tiene más recursos; `dev` y `stage` usan los valores base.
 - `README.md`: esta guía.
 
 No se usa `namePrefix` porque los servicios ya se llaman `postgres`, `kafka`, `auth`, etc. Tampoco se cambia el namespace de forma automática porque hay tres namespaces distintos.
@@ -45,6 +56,7 @@ No se usa `namePrefix` porque los servicios ya se llaman `postgres`, `kafka`, `a
 - Comprueba siempre en qué clúster estás. Los tres ambientes usan los mismos nombres de namespaces.
 - Las cuotas son **provisionales**: se estimaron desde Terraform, no se compararon con los nodos reales.
 - Los manifiestos de aplicación usan tags definidos y existentes como tags de Git; la disponibilidad real de las imágenes en Nexus debe verificarse antes de aplicar. Los Secret de aplicación siguen con valores `REEMPLAZAR` y deben inyectarse fuera de Git antes de aplicar.
+- Los `.env` de `infra/k8s/data/` están ignorados por Git y no deben versionarse; los `secretGenerator` de `data/kustomization.yaml` los consumen desde el workspace/Jenkins.
 - En esta entrega **no se aplicó nada**. Falta validar con acceso real.
 
 ## 3. Conectarse al clúster
@@ -201,6 +213,14 @@ kubectl diff -k infra/k8s/overlays/prod
 kubectl apply -k infra/k8s/overlays/prod
 ```
 
+Los manifiestos de datos no están en los overlays. Si aún no están aplicados, renderizarlos y aplicarlos por separado con la identidad administradora. El namespace `circleguard-data` se crea en `base`, así que debe existir antes de este paso:
+
+```bash
+kubectl kustomize infra/k8s/data
+kubectl diff -k infra/k8s/data
+kubectl apply -k infra/k8s/data
+```
+
 Reglas:
 
 - `kubectl kustomize` solo muestra lo que se aplicaría. No cambia nada.
@@ -222,8 +242,8 @@ kubectl get serviceaccount circleguard-deployer -n circleguard
 ### Namespaces
 
 - `circleguard`: aplicaciones.
-- `circleguard-data`: PostgreSQL, Neo4j, Kafka, Redis y OpenLDAP.
-- `circleguard-observability`: Prometheus, Grafana, Alertmanager, Jaeger, Loki y Promtail.
+- `circleguard-data`: PostgreSQL, Neo4j, Redis, ZooKeeper, Kafka y OpenLDAP.
+- `circleguard-observability`: Prometheus, Grafana, Loki, Grafana Alloy, kube-state-metrics y node-exporter.
 
 ### Cuotas
 
@@ -235,7 +255,7 @@ Son valores **provisionales**. No están validados contra la capacidad real de l
 |---|---:|---:|---:|---:|---:|
 | `circleguard` | 600 m | 2560 Mi | 5 | 7 Gi | 8 Gi |
 | `circleguard-data` | 700 m | 2560 Mi | 4 | 6 Gi | 16 Gi |
-| `circleguard-observability` | 300 m | 1 Gi | 1500 m | 3 Gi | 4 Gi |
+| `circleguard-observability` | 400 m | 1536 Mi | 2 | 3 Gi | 4 Gi |
 
 `prod`:
 
@@ -268,10 +288,11 @@ Cada namespace empieza con todo bloqueado. Después se permiten solo estos flujo
 - Entrada desde Traefik a aplicaciones y observabilidad.
 - Aplicaciones hacia datos en los puertos 5432, 7687, 29092, 6379 y 389.
 - Observabilidad hacia aplicaciones y datos para scraping.
+- Prometheus y kube-state-metrics hacia la API de Kubernetes (`observability/networkpolicies.yaml`).
 
 No hay salida general a Internet. Si luego se necesita SMTP, Gotify, alertas u otros servicios externos, habrá que añadir reglas explícitas.
 
-Las dos reglas `allow-traefik-ingress` incluyen ahora `namespaceSelector` para `kube-system` y `podSelector` con `app.kubernetes.io/name: traefik`. No se crearon políticas nuevas ni cambió el diseño general de seguridad: el único ajuste es ese `podSelector`. No se pudo comprobar en `dev` que Traefik tenga esa etiqueta; verificarlo antes de aplicar. No hay salida general a Internet y las reglas para SMTP/proveedores externos siguen pendientes.
+Las reglas `allow-app-to-data` permiten desde `circleguard` hacia `circleguard-data` en los puertos 5432, 7687, 29092, 6379 y 389; `allow-observability-scrape` permite el scraping desde `circleguard-observability` hacia aplicaciones y datos. Las dos reglas `allow-traefik-ingress` incluyen ahora `namespaceSelector` para `kube-system` y `podSelector` con `app.kubernetes.io/name: traefik` (aporte de HU-24). No se crearon políticas nuevas ni cambió el diseño general de seguridad: verificar en `dev` que Traefik tiene esa etiqueta antes de aplicar. No hay salida general a Internet; SMTP y proveedores externos siguen pendientes.
 
 ### RBAC del deployer
 
@@ -336,7 +357,7 @@ Los dominios `.invalid` son marcadores deliberados; reemplazarlos por orígenes 
 
 ### Dependencias externas
 
-Los manifiestos asumen que `circleguard-data` ya contiene Services con estos nombres:
+Los manifiestos de aplicación consumen estos Services desde `circleguard-data`:
 
 - `postgres.circleguard-data.svc.cluster.local:5432`
 - `neo4j.circleguard-data.svc.cluster.local:7687`
@@ -344,7 +365,7 @@ Los manifiestos asumen que `circleguard-data` ya contiene Services con estos nom
 - `redis.circleguard-data.svc.cluster.local:6379`
 - `openldap.circleguard-data.svc.cluster.local:389`
 
-No se incluyen manifiestos para esos componentes. Confirmar nombres reales, bases de datos y credenciales antes de aplicar. Las bases de datos usadas por las URLs JDBC son `circleguard_auth`, `circleguard_identity`, `circleguard_promotion`, `circleguard_form` y `circleguard_dashboard`.
+Los manifiestos de esos componentes están en `infra/k8s/data/` y se aplican como root separado; los overlays no los renderizan. Confirmar nombres reales, bases de datos y credenciales antes de aplicar. Las bases de datos usadas por las URLs JDBC son `circleguard_auth`, `circleguard_identity`, `circleguard_promotion`, `circleguard_form` y `circleguard_dashboard`.
 
 ### Probes
 
@@ -388,7 +409,7 @@ Solo se ajustaron las dos reglas `allow-traefik-ingress` existentes para añadir
 
 ### Validación de las aplicaciones
 
-`kustomize build infra/k8s/overlays/dev` debe renderizar 8 Deployments, 8 Services, 16 NetworkPolicies, 1 Ingress y 1 PVC, con las ocho imágenes apuntando al registry del entorno y su tag correspondiente. Repetir para `stage` y `prod`. No se aplicó nada al clúster.
+`kustomize build infra/k8s/overlays/dev` renderiza 8 Deployments y 8 Services de aplicación en `circleguard`, además de observabilidad: 12 Deployments, 13 Services y 17 NetworkPolicies en total, 2 Ingress y 4 PVC. Las ocho imágenes de aplicación apuntan al registry del entorno con el tag correspondiente; no se usa `latest`. Repetir para `stage` y `prod`. `kustomize build infra/k8s/data` renderiza 5 StatefulSets, 1 Deployment, 6 Services, 5 PVC, 1 ConfigMap y 3 Secrets. No se aplicó nada al clúster.
 
 ## 9. Almacenamiento: qué no promete esta configuración
 
@@ -413,11 +434,11 @@ Antes de aplicar en un clúster real:
 - Revisar cuotas actuales: `kubectl get resourcequota,limitrange -A`.
 - Comprobar etiquetas de CoreDNS y Traefik en `dev` con `kubectl -n kube-system get pods --show-labels`; Traefik debe tener `app.kubernetes.io/name: traefik`.
 - Sustituir los secretos `REEMPLAZAR` y los dominios `.invalid` antes de renderizar para aplicar. No sustituir `nexus-pull-secret`: se administra fuera de Git.
-- Ejecutar `kubectl kustomize` en los tres overlays y comprobar 8 Deployments, 8 Services, 16 NetworkPolicies, 1 Ingress y 1 PVC.
+- Ejecutar `kubectl kustomize` en los tres overlays y comprobar 8 Deployments/8 Services de aplicación, 17 NetworkPolicies totales, 2 Ingress y 4 PVC; ejecutarlo también en `data/` y comprobar 5 StatefulSets, 1 Deployment, 6 Services y 5 PVC.
 - Validar esquema con `kubeconform`, si está disponible.
 - Usar `kubectl diff -k` y `kubectl apply --dry-run=server`.
 
-El render real se validó localmente con `kustomize build` en los tres overlays. `kubeconform` no está disponible y no se aplicó nada contra un clúster; siguen pendientes `kubectl diff`, `apply --dry-run=server` y la comprobación de etiquetas reales de Traefik.
+El render real se validó localmente con `kustomize build` en los tres overlays y en `data/`. No se ejecutó `kubeconform` y no se aplicó nada contra un clúster; siguen pendientes `kubectl diff`, `apply --dry-run=server` y la comprobación de etiquetas reales de Traefik.
 
 ## 11. Decisiones y riesgos
 
@@ -427,7 +448,7 @@ El render real se validó localmente con `kustomize build` en los tres overlays.
 - El deployer tiene menos permisos sobre Secrets; los flujos que necesiten listar o borrar deberán usar otra identidad.
 - `local-path` no garantiza espacio ni disponibilidad.
 - La capacidad de `dev` y `stage` es ajustada para todos los componentes previstos.
-- No se desplegó Prometheus, Grafana, Loki, Jaeger ni ningún otro componente.
+- Los manifiestos de Prometheus, Grafana, Loki y Alloy están incluidos en los overlays; su funcionamiento real no se validó contra un clúster.
 - No se añadió TLS, cert-manager, backups ni External Secrets.
 
 ## 12. Alcance
@@ -436,11 +457,12 @@ Dentro de este alcance:
 
 - Namespaces, cuotas, límites, reglas de red, RBAC y overlays.
 - Manifiestos de aplicación, Services, ConfigMaps, Secrets, PVC e Ingress.
+- Manifiestos base de middleware en `data/` y manifiestos de observabilidad incluidos en los overlays.
 - Documentación de uso y de validaciones pendientes.
 
 Fuera de este alcance:
 
-- Migración o despliegue de PostgreSQL, Neo4j, Kafka, Redis y OpenLDAP.
-- Cambios en Jenkins, Terraform o AWS.
+- Migración de datos y verificación en clúster de PostgreSQL, Neo4j, Kafka, Redis y OpenLDAP.
+- Cambios en Jenkins, Terraform o AWS desde esta carpeta.
 - Reglas de egress para SMTP y proveedores externos.
-- TLS, cert-manager, backups y observabilidad real.
+- TLS, cert-manager, backups y verificación real de observabilidad.
