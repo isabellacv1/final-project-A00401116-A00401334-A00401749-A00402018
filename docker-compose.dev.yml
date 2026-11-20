@@ -6,6 +6,15 @@
 # Together with docker-compose.app.yml it runs the whole platform in containers:
 #   docker compose -f docker-compose.dev.yml -f docker-compose.app.yml up -d --build
 #
+# Credentials are external (HU-34), like in the application layer: Compose takes
+# them from the `.env` file at the repository root or from the shell. The same
+# file feeds the application layer, so the password PostgreSQL is created with is
+# exactly the one the services authenticate with.
+#
+# Inside a healthcheck, `$$VAR` is used instead of `${VAR}`: the `$$` escapes the
+# interpolation, so the `$` reaches the container's shell and is expanded there
+# with the value the container actually received.
+#
 # Every container has a healthcheck so the application services can wait until
 # their dependencies are really ready (depends_on: condition: service_healthy).
 
@@ -14,8 +23,8 @@ services:
     image: postgres:16
     container_name: circleguard-postgres
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: password
+      POSTGRES_USER: ${DB_USERNAME:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required (deploy/secrets/<environment>-secrets.env)}
       POSTGRES_DB: circleguard
     ports:
       - "5432:5432"
@@ -27,7 +36,7 @@ services:
     healthcheck:
       # -h localhost forces a TCP check, so the container is not reported ready
       # while the entrypoint is still running init-db.sql on the temporary server.
-      test: ["CMD-SHELL", "pg_isready -h localhost -U admin -d circleguard"]
+      test: ["CMD-SHELL", "pg_isready -h localhost -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -40,7 +49,9 @@ services:
       - "7474:7474"
       - "7687:7687"
     environment:
-      NEO4J_AUTH: neo4j/password
+      # Only NEO4J_AUTH here: the image turns every other NEO4J_* variable into a
+      # neo4j.conf setting and aborts on unknown ones (e.g. NEO4J_PASSWORD).
+      NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:?NEO4J_PASSWORD is required (deploy/secrets/<environment>-secrets.env)}
       NEO4J_PLUGINS: '["apoc"]'
       NEO4J_dbms_connector_bolt_listen__address: :7687
       NEO4J_dbms_connector_bolt_advertised__address: :7687
@@ -49,7 +60,7 @@ services:
     networks:
       - circleguard-net
     healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -u neo4j -p password 'RETURN 1' > /dev/null 2>&1"]
+      test: ["CMD-SHELL", "cypher-shell -u ${NEO4J_USERNAME:-neo4j} -p \"$${NEO4J_AUTH#*/}\" 'RETURN 1' > /dev/null 2>&1"]
       interval: 10s
       timeout: 10s
       retries: 12
@@ -118,11 +129,11 @@ services:
     environment:
       LDAP_ORGANISATION: "CircleGuard"
       LDAP_DOMAIN: "circleguard.edu"
-      LDAP_ADMIN_PASSWORD: "admin"
+      LDAP_ADMIN_PASSWORD: ${LDAP_PASSWORD:?LDAP_PASSWORD is required (deploy/secrets/<environment>-secrets.env)}
     networks:
       - circleguard-net
     healthcheck:
-      test: ["CMD-SHELL", "ldapsearch -x -H ldap://localhost:389 -D cn=admin,dc=circleguard,dc=edu -w admin -b dc=circleguard,dc=edu -s base dn > /dev/null 2>&1"]
+      test: ["CMD-SHELL", "ldapsearch -x -H ldap://localhost:389 -D cn=admin,dc=circleguard,dc=edu -w $$LDAP_ADMIN_PASSWORD -b dc=circleguard,dc=edu -s base dn > /dev/null 2>&1"]
       interval: 10s
       timeout: 5s
       retries: 10

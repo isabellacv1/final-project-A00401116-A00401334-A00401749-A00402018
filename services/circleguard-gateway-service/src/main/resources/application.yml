@@ -3,19 +3,19 @@ spring:
     name: circleguard-gateway-service
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8081,http://localhost:8080}
 
-jwt:
-  secret: "my-super-secret-dev-key-32-chars-long-12345678"
-  expiration: 3600000
-
 qr:
-  secret: "my-qr-secret-key-for-dev-1234567890"
-  expiration: 300
+  # Debe coincidir con el secret de auth (valida los codigos QR que emite).
+  secret: ${QR_SECRET}
+
+logging:
+  level:
+    root: ${LOG_LEVEL:INFO}
 
 server:
   port: 8087

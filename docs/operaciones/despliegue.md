@@ -71,6 +71,23 @@ crearlo.
 Las imágenes se construyen con BuildKit y se etiquetan con la versión semántica resuelta por
 el pipeline. **Nunca se usa `latest`.**
 
+Para construir una imagen suelta en local (por ejemplo, `notification`) y ejecutarla con sus
+dependencias:
+
+```bash
+# Contexto: la raíz del repositorio, porque el Dockerfile copia gradle/ y services/
+docker build -t circleguard/notification-service:1.0.0 \
+  -f services/circleguard-notification-service/Dockerfile .
+
+# Compose construye y arranca el servicio con Kafka y el resto de dependencias
+docker compose -f docker-compose.dev.yml -f docker-compose.app.yml up -d --build notification
+
+# Verificar que queda saludable
+docker compose -f docker-compose.dev.yml -f docker-compose.app.yml ps notification
+```
+
+Las mismas instrucciones aplican a `file` y `dashboard` cambiando el nombre del servicio.
+
 ## Registro Nexus
 
 Las imágenes se publican en el repositorio Docker de Nexus:
@@ -96,15 +113,22 @@ Las imágenes se publican en el repositorio Docker de Nexus:
 | `stage` | `deploy/environments/stage.env` | `184.192.198.69` | `stage` | Promoción automática desde `dev` tras las validaciones y E2E. |
 | `prod` | `deploy/environments/prod.env` | `98.92.231.157` | `prod` | Promoción desde `stage` con aprobación manual (`input`). |
 
-Cada archivo define `HOST`, `SSH_USER`, `REGISTRY`, `SPRING_PROFILES_ACTIVE` y `WEB_HOST`.
-La versión (`VERSION`) no se guarda en el archivo: la escribe el pipeline con la versión
-publicada por el mismo build.
+Cada archivo define `HOST`, `SSH_USER`, `REGISTRY`, `SPRING_PROFILES_ACTIVE`, `WEB_HOST`, el nivel
+de logs (`LOG_LEVEL`), las vigencias (`JWT_EXPIRATION`, `QR_EXPIRATION`) y el endpoint de
+PostgreSQL (`DB_HOST`, `DB_PORT`). La versión (`VERSION`) no se guarda en el archivo: la escribe el
+pipeline con la versión publicada por el mismo build.
+
+Las credenciales no están en estos archivos: viven en la credencial de Jenkins
+`<ambiente>-app-secrets` (tipo *Secret file*, formato de `deploy/secrets/secrets.env.example`). El
+paso de despliegue la agrega al archivo de entorno y copia el resultado al host como `.env`
+(permisos `600`); ver [`deploy/README.md`](../../deploy/README.md#secrets-on-the-host).
 
 ### Credenciales de Jenkins
 
 | Credencial | Uso |
 |------------|-----|
 | `dev-credential`, `stage-credential`, `prod-credential` | Clave SSH del usuario `ubuntu` de cada entorno. |
+| `dev-app-secrets`, `stage-app-secrets`, `prod-app-secrets` | *Secret file* con los secretos de la aplicación de cada entorno (HU-34). Obligatoria para desplegar. |
 | `nexus-credential` | Usuario y contraseña para publicar en Nexus. |
 | `e2e-credential` / `e2e-credentials` | Usuario de prueba para los smoke tests y para Playwright. |
 | `git-credential` | Lectura del repositorio y reporte de estado a GitHub. |
