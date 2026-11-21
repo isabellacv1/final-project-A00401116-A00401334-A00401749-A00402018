@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: circleguard-common-config
+  namespace: circleguard
+data:
+  SPRING_PROFILES_ACTIVE: dev

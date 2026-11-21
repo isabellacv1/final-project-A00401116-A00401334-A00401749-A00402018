@@ -1,0 +1,123 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: circleguard-auth-service
+  namespace: circleguard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: circleguard-auth-service
+      app.kubernetes.io/instance: auth
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: circleguard-auth-service
+        app.kubernetes.io/instance: auth
+        app.kubernetes.io/component: backend
+        app.kubernetes.io/part-of: circleguard
+    spec:
+      imagePullSecrets:
+        - name: nexus-pull-secret
+      containers:
+        - name: auth-service
+          image: 10.20.1.230:8082/circleguard/auth-service:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8180
+              protocol: TCP
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              valueFrom:
+                configMapKeyRef:
+                  name: circleguard-common-config
+                  key: SPRING_PROFILES_ACTIVE
+            - name: SPRING_DATASOURCE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: circleguard-auth-config
+                  key: SPRING_DATASOURCE_URL
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: circleguard-auth-config
+                  key: SPRING_DATASOURCE_USERNAME
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: circleguard-auth-secret
+                  key: SPRING_DATASOURCE_PASSWORD
+            - name: SPRING_LDAP_URLS
+              valueFrom:
+                configMapKeyRef:
+                  name: circleguard-auth-config
+                  key: SPRING_LDAP_URLS
+            - name: SPRING_LDAP_BASE
+              valueFrom:
+                configMapKeyRef:
+                  name: circleguard-auth-config
+                  key: SPRING_LDAP_BASE
+            - name: SPRING_LDAP_USERNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: circleguard-auth-config
+                  key: SPRING_LDAP_USERNAME
+            - name: SPRING_LDAP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: circleguard-auth-secret
+                  key: SPRING_LDAP_PASSWORD
+            - name: IDENTITY_API_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: circleguard-auth-config
+                  key: IDENTITY_API_URL
+            - name: CORS_ALLOWED_ORIGINS
+              valueFrom:
+                configMapKeyRef:
+                  name: circleguard-auth-config
+                  key: CORS_ALLOWED_ORIGINS
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: circleguard-auth-secret
+                  key: JWT_SECRET
+            - name: QR_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: circleguard-auth-secret
+                  key: QR_SECRET
+            - name: QR_EXPIRATION
+              valueFrom:
+                configMapKeyRef:
+                  name: circleguard-auth-config
+                  key: QR_EXPIRATION
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 20
+            failureThreshold: 3
+            timeoutSeconds: 2
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 2
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 768Mi

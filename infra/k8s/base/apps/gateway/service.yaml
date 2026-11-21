@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: circleguard
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: circleguard-gateway-service
+    app.kubernetes.io/instance: gateway
+  ports:
+    - name: http
+      port: 8087
+      targetPort: http
+      protocol: TCP

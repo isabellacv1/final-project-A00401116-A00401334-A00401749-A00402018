@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: identity
+  namespace: circleguard
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: circleguard-identity-service
+    app.kubernetes.io/instance: identity
+  ports:
+    - name: http
+      port: 8083
+      targetPort: http
+      protocol: TCP
