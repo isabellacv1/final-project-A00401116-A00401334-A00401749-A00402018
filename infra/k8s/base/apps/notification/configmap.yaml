@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: circleguard-notification-config
+  namespace: circleguard
+data:
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka.circleguard-data.svc.cluster.local:29092
+  AUTH_API_URL: http://auth:8180
+  IDENTITY_API_URL: http://identity:8083
+  SPRING_MAIL_HOST: reemplazar-smtp-host.invalid
+  SPRING_MAIL_PORT: "25"

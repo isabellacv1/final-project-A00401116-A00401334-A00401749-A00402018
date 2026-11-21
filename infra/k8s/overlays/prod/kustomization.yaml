@@ -9,6 +9,23 @@ labels:
   - pairs:
       circleguard.io/environment: prod
     includeSelectors: false
+images:
+  - name: 10.20.1.230:8082/circleguard/auth-service
+    newTag: 1.0.0
+  - name: 10.20.1.230:8082/circleguard/identity-service
+    newTag: 1.0.0
+  - name: 10.20.1.230:8082/circleguard/promotion-service
+    newTag: 1.0.0
+  - name: 10.20.1.230:8082/circleguard/notification-service
+    newTag: 1.0.0-dev.10
+  - name: 10.20.1.230:8082/circleguard/form-service
+    newTag: 1.0.0
+  - name: 10.20.1.230:8082/circleguard/gateway-service
+    newTag: 1.0.0
+  - name: 10.20.1.230:8082/circleguard/dashboard-service
+    newTag: 1.0.0-dev.10
+  - name: 10.20.1.230:8082/circleguard/file-service
+    newTag: 1.0.0-dev.10
 patches:
   - target:
       kind: ResourceQuota
@@ -56,3 +73,51 @@ patches:
           limits.memory: 4Gi
           requests.storage: 6Gi
           pods: "10"
+  - target:
+      kind: ConfigMap
+      name: circleguard-common-config
+      namespace: circleguard
+    patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: circleguard-common-config
+        namespace: circleguard
+      data:
+        SPRING_PROFILES_ACTIVE: prod
+  - target:
+      kind: ConfigMap
+      name: circleguard-auth-config
+      namespace: circleguard
+    patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: circleguard-auth-config
+        namespace: circleguard
+      data:
+        CORS_ALLOWED_ORIGINS: http://reemplazar-host-web-prod.invalid:8081
+  - target:
+      kind: ConfigMap
+      name: circleguard-gateway-config
+      namespace: circleguard
+    patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: circleguard-gateway-config
+        namespace: circleguard
+      data:
+        CORS_ALLOWED_ORIGINS: http://reemplazar-host-web-prod.invalid:8081
+  - target:
+      kind: ConfigMap
+      name: circleguard-notification-config
+      namespace: circleguard
+    patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: circleguard-notification-config
+        namespace: circleguard
+      data:
+        SPRING_MAIL_HOST: reemplazar-smtp-host-prod.invalid

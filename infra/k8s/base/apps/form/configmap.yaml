@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: circleguard-form-config
+  namespace: circleguard
+data:
+  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres.circleguard-data.svc.cluster.local:5432/circleguard_form
+  SPRING_DATASOURCE_USERNAME: admin
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka.circleguard-data.svc.cluster.local:29092
