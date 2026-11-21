@@ -1,0 +1,22 @@
+# Selects only the canary pods (instance: dashboard-canary). It has no endpoints
+# while no canary is running; the weighted route only references it during a
+# canary, so Traefik never routes to an empty Service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard-canary
+  namespace: circleguard
+  labels:
+    app.kubernetes.io/name: circleguard-dashboard-service
+    app.kubernetes.io/part-of: circleguard
+    circleguard.io/track: canary
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: circleguard-dashboard-service
+    app.kubernetes.io/instance: dashboard-canary
+  ports:
+    - name: http
+      port: 8084
+      targetPort: http
+      protocol: TCP

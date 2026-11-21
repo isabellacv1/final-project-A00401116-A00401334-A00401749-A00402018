@@ -1,0 +1,17 @@
+# HU-30 - Canary release for the dashboard service.
+#
+# Traefik (bundled with k3s) splits the traffic of /api/v1/analytics between the
+# stable pods and a canary Deployment by weight. scripts/k8s/canary.sh creates the
+# canary Deployment, moves the weights, promotes it or aborts it.
+#
+#   steady state:  dashboard (stable) 100 %
+#   during canary: dashboard 90 % / dashboard-canary 10 %  (weight is configurable)
+#
+# The canary pods use a different app.kubernetes.io/instance label, so the
+# `dashboard` Service of the stable pods never selects them by accident.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  - service-canary.yaml
+  - traefik-weighted.yaml
