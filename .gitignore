@@ -55,6 +55,8 @@ neo4jdata/
 services/*/uploads/
 
 # Local environment files with credentials (never commit)
+.env
+deploy/secrets/*.env
 scripts/infrastructure.env
 infra/config-as-code/.env
 

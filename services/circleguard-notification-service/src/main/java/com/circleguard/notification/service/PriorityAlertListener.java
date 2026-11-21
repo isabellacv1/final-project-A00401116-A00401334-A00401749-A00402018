@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
@@ -19,7 +20,7 @@ public class PriorityAlertListener {
 
     private final ObjectMapper objectMapper;
     private final TemplateService templateService;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate = restTemplateWithTimeouts();
 
     @Value("${auth.api.url:http://circleguard-auth-service:8080}")
     private String authApiUrl;
@@ -55,5 +56,16 @@ public class PriorityAlertListener {
         } catch (Exception e) {
             log.error("Failed to process alert.priority event: {}", e.getMessage(), e);
         }
+    }
+
+    /**
+     * HU-28: a RestTemplate without timeouts waits forever for a hung service.
+     * Connect 2 s, read 5 s: the call fails fast and the existing fallback applies.
+     */
+    private static RestTemplate restTemplateWithTimeouts() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(2000);
+        factory.setReadTimeout(5000);
+        return new RestTemplate(factory);
     }
 }

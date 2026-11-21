@@ -2,12 +2,14 @@ spring:
   application:
     name: circleguard-file-service
 
-# Placeholder for S3/MinIO configuration if needed later
-# aws:
-#   s3:
-#     endpoint: http://localhost:9000
-#     access-key: minioadmin
-#     secret-key: minioadmin
+file:
+  storage:
+    # Montado sobre el volumen fileuploads en el compose.
+    path: ${FILE_STORAGE_PATH:uploads}
+
+logging:
+  level:
+    root: ${LOG_LEVEL:INFO}
 
 server:
   port: 8085

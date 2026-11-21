@@ -9,7 +9,7 @@ import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.neo4j.core.Neo4jClient;
@@ -49,19 +49,19 @@ class StatusLifecycleTest {
     @Autowired
     private StatusLifecycleService lifecycleService;
 
-    @MockBean
+    @MockitoBean
     private Neo4jClient neo4jClient;
 
-    @MockBean
+    @MockitoBean
     private SystemSettingsRepository settingsRepository;
 
-    @MockBean
+    @MockitoBean
     private StringRedisTemplate redisTemplate;
 
-    @MockBean
+    @MockitoBean
     private KafkaTemplate<String, Object> kafkaTemplate;
 
-    @MockBean
+    @MockitoBean
     private ValueOperations<String, String> valueOperations;
 
     @BeforeEach

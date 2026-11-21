@@ -63,7 +63,7 @@ public class SecurityConfig {
             @Value("${spring.ldap.urls:ldap://localhost:389}") String ldapUrl,
             @Value("${spring.ldap.base:dc=circleguard,dc=edu}") String ldapBase,
             @Value("${spring.ldap.username:cn=admin,dc=circleguard,dc=edu}") String ldapUsername,
-            @Value("${spring.ldap.password:admin}") String ldapPassword) {
+            @Value("${spring.ldap.password}") String ldapPassword) {
         LdapContextSource contextSource = new LdapContextSource();
         contextSource.setUrl(ldapUrl);
         contextSource.setBase(ldapBase);
@@ -82,8 +82,7 @@ public class SecurityConfig {
 
     @Bean
     public DaoAuthenticationProvider daoAuthenticationProvider(CustomUserDetailsService userDetailsService, PasswordEncoder encoder) {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-        provider.setUserDetailsService(userDetailsService);
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);
         provider.setPasswordEncoder(encoder);
         return provider;
     }

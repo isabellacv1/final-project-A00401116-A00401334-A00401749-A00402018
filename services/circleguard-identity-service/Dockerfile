@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # ---------- Build stage ----------
-FROM eclipse-temurin:21.0.8_9-jdk-jammy AS builder
+FROM eclipse-temurin:21.0.13_9-jdk-jammy AS builder
 
 WORKDIR /workspace
 
@@ -17,7 +17,7 @@ RUN --mount=type=cache,target=/root/.gradle,sharing=locked \
       -x test --no-daemon --console=plain
 
 # ---------- Runtime stage ----------
-FROM eclipse-temurin:21.0.8_9-jre-jammy
+FROM eclipse-temurin:21.0.13_9-jre-jammy
 
 RUN groupadd --system app && useradd --system --gid app --home-dir /app app
 
@@ -31,8 +31,13 @@ USER app
 
 EXPOSE 8083
 
-# The JRE image includes bash, so we can probe the port without extra tools.
-HEALTHCHECK --interval=30s --timeout=3s --start-period=45s --retries=3 \
-    CMD bash -c 'exec 3<>/dev/tcp/127.0.0.1/8083' || exit 1
+# HU-28: the healthcheck asks Spring Boot whether the service can serve requests
+# (/actuator/health/readiness, which includes its database, Redis or Neo4j), not
+# just whether the port is open. The JRE image has bash but no curl, so the HTTP
+# request goes through /dev/tcp. The answer is 200 when UP and 503 when DOWN.
+HEALTHCHECK --interval=15s --timeout=5s --start-period=90s --retries=3 \
+    CMD bash -c 'exec 3<>/dev/tcp/127.0.0.1/8083 && printf "GET /actuator/health/readiness HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3 && head -n1 <&3 | grep -q " 200 "' || exit 1
 
-ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "/app/app.jar"]
+# HU-28: an OutOfMemoryError leaves the JVM in an undefined state. Exiting lets the
+# container restart policy start a clean process instead of keeping a broken one.
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-XX:+ExitOnOutOfMemoryError", "-jar", "/app/app.jar"]
