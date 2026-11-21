@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: circleguard-identity-config
+  namespace: circleguard
+data:
+  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres.circleguard-data.svc.cluster.local:5432/circleguard_identity
+  SPRING_DATASOURCE_USERNAME: admin
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka.circleguard-data.svc.cluster.local:29092

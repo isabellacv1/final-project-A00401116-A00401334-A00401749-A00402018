@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: circleguard-notification-service
+  namespace: circleguard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: circleguard-notification-service
+      app.kubernetes.io/instance: notification
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: circleguard-notification-service
+        app.kubernetes.io/instance: notification
+        app.kubernetes.io/component: backend
+        app.kubernetes.io/part-of: circleguard
+    spec:
+      imagePullSecrets:
+        - name: nexus-pull-secret
+      containers:
+        - name: notification-service
+          image: 10.20.1.230:8082/circleguard/notification-service:1.0.0-dev.10
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8082
+              protocol: TCP
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              valueFrom:
+                configMapKeyRef:
+                  name: circleguard-common-config
+                  key: SPRING_PROFILES_ACTIVE
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: circleguard-notification-config
+                  key: SPRING_KAFKA_BOOTSTRAP_SERVERS
+            - name: AUTH_API_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: circleguard-notification-config
+                  key: AUTH_API_URL
+            - name: IDENTITY_API_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: circleguard-notification-config
+                  key: IDENTITY_API_URL
+            - name: SPRING_MAIL_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: circleguard-notification-config
+                  key: SPRING_MAIL_HOST
+            - name: SPRING_MAIL_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: circleguard-notification-config
+                  key: SPRING_MAIL_PORT
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: circleguard-notification-secret
+                  key: JWT_SECRET
+            - name: QR_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: circleguard-notification-secret
+                  key: QR_SECRET
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 20
+            failureThreshold: 3
+            timeoutSeconds: 2
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 2
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 768Mi
