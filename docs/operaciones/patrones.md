@@ -408,8 +408,11 @@ scripts/k8s/canary.sh promote      # o: scripts/k8s/canary.sh abort
 kubectl -n circleguard rollout history deploy/circleguard-dashboard-service
 ```
 
-Los componentes se activan desde los overlays con
-`components: [../../components/rolling-update, ../../components/canary-dashboard]`.
+Los overlays `dev`, `stage` y `prod` incluyen ambos componentes
+(`components: [..., ../../components/rolling-update, ../../components/canary-dashboard]`), así
+que un `kubectl apply -k infra/k8s/overlays/<ambiente>` ya despliega los ocho servicios con la
+estrategia de Rolling Update y deja listo el reparto por pesos del dashboard. En `prod`, el parche
+de cuota del overlay se aplica después del componente y conserva sus 6 Gi.
 
 ---
 
