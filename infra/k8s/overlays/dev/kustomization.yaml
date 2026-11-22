@@ -10,6 +10,8 @@ labels:
       circleguard.io/environment: dev
     includeSelectors: false
 images:
+  - name: 10.20.1.230:8082/circleguard/web
+    newTag: 1.0.0-dev.10
   - name: 10.20.1.230:8082/circleguard/auth-service
     newTag: 1.0.0-dev.10
   - name: 10.20.1.230:8082/circleguard/identity-service
@@ -39,30 +41,6 @@ patches:
         namespace: circleguard
       data:
         SPRING_PROFILES_ACTIVE: dev
-  - target:
-      kind: ConfigMap
-      name: circleguard-auth-config
-      namespace: circleguard
-    patch: |-
-      apiVersion: v1
-      kind: ConfigMap
-      metadata:
-        name: circleguard-auth-config
-        namespace: circleguard
-      data:
-        CORS_ALLOWED_ORIGINS: http://reemplazar-host-web-dev.invalid:8081
-  - target:
-      kind: ConfigMap
-      name: circleguard-gateway-config
-      namespace: circleguard
-    patch: |-
-      apiVersion: v1
-      kind: ConfigMap
-      metadata:
-        name: circleguard-gateway-config
-        namespace: circleguard
-      data:
-        CORS_ALLOWED_ORIGINS: http://reemplazar-host-web-dev.invalid:8081
   - target:
       kind: ConfigMap
       name: circleguard-notification-config

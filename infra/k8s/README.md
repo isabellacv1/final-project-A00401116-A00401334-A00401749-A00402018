@@ -333,7 +333,9 @@ La base usa imágenes fully-qualified `10.20.1.230:8082/circleguard/<servicio>:<
 
 ### Configuración sensible
 
-Los Secret de aplicación usan `stringData` con valores `REEMPLAZAR`; deben reemplazarse fuera del repositorio con el mecanismo de secretos del clúster. `nexus-pull-secret.yaml` es solo un manifiesto de ejemplo sin credenciales reales y no está incluido en `base/apps/kustomization.yaml`, por lo que no aparece en el render de Kustomize. El Secret real `nexus-pull-secret` debe existir previamente en el namespace `circleguard`, se administra fuera de Git y su presencia real debe verificarse en el clúster antes del despliegue.
+Los Secret de aplicación no se generan desde estos manifiestos: `base/apps/kustomization.yaml` no incluye los archivos `secret.yaml` y los overlays no renderizan objetos `Secret` de aplicación. Deben aprovisionarse externamente, antes de aplicar el overlay, con los nombres y claves exactos de la tabla siguiente. No hay valores reales en Git. Esto no aplica a los `secretGenerator` de `infra/k8s/data/`, que consumen archivos `.env` ignorados del workspace para el middleware.
+
+`nexus-pull-secret.yaml` es solo un manifiesto de ejemplo sin credenciales reales y no está incluido en `base/apps/kustomization.yaml`, por lo que no aparece en el render de Kustomize. El Secret real `nexus-pull-secret` debe existir previamente en el namespace `circleguard`, se administra fuera de Git y su presencia real debe verificarse en el clúster antes del despliegue.
 
 | Secret | Claves |
 |---|---|
