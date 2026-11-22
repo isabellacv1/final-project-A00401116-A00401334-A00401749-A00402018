@@ -53,8 +53,9 @@ El `Jenkinsfile` habilita la publicación de imágenes con `publish: true`. La e
 de la librería `circleguard-pipeline-library` usa `resolveVersion()`:
 
 - Si el commit tiene un tag de release (`vX.Y.Z` o `vX.Y.Z-dev.N`), la imagen se publica con esa
-  versión: `100.31.132.57:8082/circleguard/auth-service:1.2.0`. El registro es configurable
-  con el parámetro `registry`; los entornos de AWS usan `100.31.132.57:8082`.
+  versión, por ejemplo `<registry>/circleguard/auth-service:1.2.0`. El registro de publicación es
+  configurable con `registry`; las referencias de los overlays Kubernetes usan `k8sRegistry`
+  (`10.20.1.230:8082` por defecto), que es la dirección interna de Nexus para los nodos k3s.
 - Si todavía no hay tag para el commit, se usa una pre-release basada en el último tag:
   `1.2.0-build.15.ab12cd3`.
 - Nunca se usa `latest`.

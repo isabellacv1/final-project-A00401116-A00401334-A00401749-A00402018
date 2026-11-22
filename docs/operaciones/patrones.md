@@ -289,13 +289,23 @@ Kubernetes (k3s, HU-23 a HU-25).
 
 Restricciones medidas en el proyecto:
 
+| Evidencia | Dónde |
+|-----------|-------|
+| Tag semántico de cada imagen publicada | Nexus `<registry>/circleguard/*`; overlays Kubernetes usan `10.20.1.230:8082/circleguard/*` |
+| Misma versión en los tres ambientes | `promotion-record.txt` (artefacto del build) |
+| Despliegue condicionado a salud | Etapas *Deploy*, *Verify deployment* y *Smoke tests* del pipeline |
+| Aprobador de prod | Registro del `input` de Jenkins y `promotion-record.txt` |
+
+Restricciones medidas en el proyecto:
+
 | Restricción | Valor | Fuente |
 |-------------|-------|--------|
 | Nodos | `m7i-flex.large` (2 vCPU, 8 GB); **un solo nodo** en dev y stage, dos en prod | `infra/terraform/shared`, `envs/*` |
-| Cuota del namespace `circleguard` | 2560 Mi de memoria reservada; los 8 servicios ya reservan **2304 Mi** | `infra/k8s/base/resourcequotas.yaml` |
+| Cuota del namespace `circleguard` | 3072 Mi en dev/stage; los nueve componentes piden **2368 Mi** | `infra/k8s/platform/base/resourcequotas.yaml` |
 | El mismo nodo aloja | Middleware (cuota 2560 Mi) y observabilidad (cuota 1536 Mi) | `circleguard-data`, `circleguard-observability` |
 | Enrutamiento disponible | Traefik incluido en k3s (soporta reparto por pesos) | k3s `v1.37.2+k3s1` |
-| Réplicas por servicio | 1 | Manifiestos de la HU-24 |
+| Réplicas por componente | 1 | Manifiestos de la HU-24 |
+| Alcance del pipeline | Solo `ConfigMap`, `Deployment`, `Service`, `Ingress` y `PersistentVolumeClaim`; el deployer no tiene RBAC sobre `traefik.io` | `deployKubernetes()` y `rbac-deployer.yaml` |
 
 Criterios de decisión, tomados de la HU y de esas restricciones:
 
@@ -312,7 +322,7 @@ Criterios de decisión, tomados de la HU y de esas restricciones:
 |--------|----|----|----|----|----|----|
 | **Recreate** (lo que hacía Compose) | ❌ 100 % expuesto | ✅ | ❌ hay corte | ❌ redesplegar | ✅ | ❌ |
 | **Rolling Update** | 🟡 todos al terminar | ✅ +1 pod | ✅ | 🟡 `rollout undo` | ✅ | ❌ |
-| **Blue-Green completo** | 🟡 100 % de golpe | ❌ **4608 Mi** frente a 2560 Mi de cuota | ✅ | ✅ instantáneo | ✅ | ❌ |
+| **Blue-Green completo** | 🟡 100 % de golpe | ❌ **4608 Mi** frente a 3072 Mi de cuota | ✅ | ✅ instantáneo | ✅ | ❌ |
 | **Blue-Green por servicio** | 🟡 100 % de golpe | ✅ +1 pod | ✅ | ✅ instantáneo | ✅ | ❌ |
 | **Canary** | ✅ **~10 %** | ✅ +1 pod | ✅ | ✅ peso a 0 % | ✅ Traefik de k3s | ✅ con tráfico real limitado |
 | **Shadow** | ✅ 0 % | ❌ duplica el tráfico | ✅ | ✅ | ❌ *service mesh* | 🟡 sin respuesta real |
@@ -324,28 +334,28 @@ Criterios de decisión, tomados de la HU y de esas restricciones:
 Blue-Green por servicio, cuesta lo mismo y revierte igual de rápido, pero Blue-Green envía el
 100 % del tráfico de golpe: un error que pasa las sondas lo sufren todos los usuarios. Con Canary
 lo sufre ~1 de cada 10 peticiones mientras se detecta. Blue-Green completo queda descartado por
-recursos: duplicar los 8 servicios casi dobla la cuota y no cabe en el nodo único de dev y stage.
+recursos: duplicar los ocho backends casi dobla la cuota y no cabe en el nodo único de dev y stage.
 
 Se combinan dos patrones que cubren fallas distintas:
 
 | Patrón | Se usa en | Protege contra |
 |--------|-----------|----------------|
-| **Rolling Update + rollback automático** | Todo despliegue de los 8 servicios | Una versión que **no arranca** o no queda sana: nunca recibe tráfico y se revierte sola |
+| **Rolling Update + rollback automático** | Todo despliegue de los nueve componentes | Una versión que **no arranca** o no queda sana: nunca recibe tráfico y se revierte sola |
 | **Canary** | Cambios riesgosos (implementado en `dashboard`) | Una versión que **arranca pero funciona mal**: solo la ve una fracción del tráfico |
 
 ### 3.5 Implementación
 
 | Pieza | Archivo | Qué hace |
 |-------|---------|----------|
-| Estrategia de Rolling Update | `infra/k8s/components/rolling-update/` | Componente de Kustomize aplicado a los 8 Deployments sin editar sus manifiestos: `maxUnavailable: 0`, `maxSurge: 1`, `minReadySeconds: 10`, `progressDeadlineSeconds: 300`, `revisionHistoryLimit: 5`, `preStop` de 10 s y margen en la cuota (3072 Mi) |
+| Estrategia de Rolling Update | `infra/k8s/components/rolling-update/` | Componente de Kustomize aplicado a los 9 Deployments sin editar sus manifiestos: `maxUnavailable: 0`, `maxSurge: 1`, `minReadySeconds: 10`, `progressDeadlineSeconds: 300`, `revisionHistoryLimit: 5`, `preStop` de 10 s; el margen de cuota está en la plataforma |
 | Rollout con rollback | `scripts/k8s/rollout.sh <servicio> <imagen>` | Cambia la imagen, espera `kubectl rollout status` y, si la versión no queda lista a tiempo, ejecuta `kubectl rollout undo` y sale con código 1 |
-| Reparto por pesos | `infra/k8s/components/canary-dashboard/` | `Service dashboard-canary`, `TraefikService dashboard-weighted` y una `IngressRoute` con prioridad sobre el Ingress general para `/api/v1/analytics` |
+| Reparto por pesos | `infra/k8s/components/canary-dashboard/` | `Service dashboard-canary`, `TraefikService dashboard-weighted` y una `IngressRoute` con prioridad sobre el Ingress general para `/api/v1/analytics`. Se aplica aparte; no entra en los overlays del pipeline |
 | Ciclo del canary | `scripts/k8s/canary.sh start <imagen> [peso] \| weight \| promote \| abort \| status` | `start` copia el Deployment estable con la imagen nueva y le da tráfico solo cuando está listo; `promote` actualiza el estable con `rollout.sh`; `abort` devuelve el 100 % al estable |
 | Demo local | `infra/k8s/demo/deployment-patterns/`, `scripts/k8s/demo-*.sh` | Clúster k3d con la misma versión de k3s y Traefik; dashboard + PostgreSQL |
 
 Decisiones de detalle:
 
-- **`maxUnavailable: 0` + `maxSurge: 1`.** Con una réplica por servicio, el pod nuevo arranca
+- **`maxUnavailable: 0` + `maxSurge: 1`.** Con una réplica por componente, el pod nuevo arranca
   junto al viejo y solo cuando está listo se retira el viejo. Uno a la vez, para no saturar el nodo.
 - **Readiness de la HU-28.** Un pod que no puede llegar a su base de datos nunca queda listo, así
   que nunca reemplaza a uno sano.
@@ -357,8 +367,9 @@ Decisiones de detalle:
   Service `dashboard` del estable no lo selecciona por accidente.
 - **El canary entra al reparto solo cuando existe.** Traefik descarta una ruta cuyo Service no tiene
   pods, así que en estado normal el reparto contiene solo al estable.
-- **Margen en la cuota.** Con 2304 de 2560 Mi reservados, el pod extra de promotion (512 Mi) habría
-  sido rechazado y su rollout habría quedado trabado. Se sube a 3072 Mi.
+- **Margen en la cuota.** Con 2368 de 3072 Mi reservados, el pod extra de promotion (512 Mi) cabe;
+  con la cuota anterior de 2560 Mi habría sido rechazado y su rollout habría quedado trabado. El
+  valor se fija en `infra/k8s/platform/base/resourcequotas.yaml`; `prod` ya usa 6 Gi / 12 Gi.
 
 ### 3.6 Demostración
 
@@ -408,11 +419,13 @@ scripts/k8s/canary.sh promote      # o: scripts/k8s/canary.sh abort
 kubectl -n circleguard rollout history deploy/circleguard-dashboard-service
 ```
 
-Los overlays `dev`, `stage` y `prod` incluyen ambos componentes
-(`components: [..., ../../components/rolling-update, ../../components/canary-dashboard]`), así
-que un `kubectl apply -k infra/k8s/overlays/<ambiente>` ya despliega los ocho servicios con la
-estrategia de Rolling Update y deja listo el reparto por pesos del dashboard. En `prod`, el parche
-de cuota del overlay se aplica después del componente y conserva sus 6 Gi.
+Los overlays `dev`, `stage` y `prod` incluyen
+`../../platform/base/observability/scrape-annotations` y `../../components/rolling-update`, así
+que un `kubectl apply -k infra/k8s/overlays/<ambiente>` despliega los nueve componentes con la
+estrategia de Rolling Update. El componente `canary-dashboard` **no** está en esos overlays: el
+pipeline solo acepta cinco tipos de recursos y el RBAC del deployer no cubre `traefik.io`, por lo
+que se aplica aparte con una identidad con permisos (o en la demo de k3d) antes de usar
+`canary.sh`. En `prod`, la cuota de plataforma ya es 6 Gi / 12 Gi.
 
 ---
 

@@ -60,6 +60,9 @@ circleguardPipeline(
     // HU-14: the E2E tests gate the promotion dev -> stage, and promoting to
     // prod always waits for a manual approval (input).
     e2e: true,
-    promote: true,
+    promote: false,
+    kubeconfigCredentialId: 'dev-kubeconfig',
+    k8sContexts: [dev: 'circleguard-deployer'],
+    k8sIngressUrls: [dev: 'http://10.20.2.113/'],
     discordCredentialsId: 'discord-webhook-url'
 )

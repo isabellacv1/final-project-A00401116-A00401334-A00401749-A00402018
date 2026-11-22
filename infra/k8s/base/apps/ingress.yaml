@@ -157,3 +157,10 @@ spec:
                 name: dashboard
                 port:
                   name: http
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  name: http
