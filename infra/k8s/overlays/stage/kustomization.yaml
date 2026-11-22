@@ -5,6 +5,8 @@ resources:
   - ../../observability
 components:
   - ../../observability/scrape-annotations
+  - ../../components/rolling-update
+  - ../../components/canary-dashboard
 labels:
   - pairs:
       circleguard.io/environment: stage

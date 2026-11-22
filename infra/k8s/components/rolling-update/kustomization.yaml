@@ -1,0 +1,74 @@
+# HU-30 - Rolling Update without downtime for every CircleGuard service.
+#
+# Applied as a component from the overlays, so the Deployments of the services
+# (infra/k8s/base/apps/*/deployment.yaml) are not edited one by one.
+#
+#   maxUnavailable: 0        an old pod is removed only after its replacement is Ready
+#   maxSurge: 1              a single extra pod at a time (the nodes are small)
+#   minReadySeconds: 10      the new pod must stay Ready 10 s before it counts
+#   progressDeadlineSeconds  the rollout is reported as failed after 5 minutes,
+#                            which is what scripts/k8s/rollout.sh uses to roll back
+#   revisionHistoryLimit: 5  previous ReplicaSets kept for `kubectl rollout undo`
+#
+# Readiness comes from /actuator/health/readiness (HU-28), so a pod that cannot
+# reach its database never receives traffic and never replaces a healthy one.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+patches:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      namespace: circleguard
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: any
+      spec:
+        minReadySeconds: 10
+        progressDeadlineSeconds: 300
+        revisionHistoryLimit: 5
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 1
+            maxUnavailable: 0
+
+  # When a pod is replaced, Kubernetes removes it from the endpoints and stops it
+  # at the same time; Traefik can still send it a request for a moment and the
+  # client gets a 502. The pod keeps serving for 10 s before it starts shutting
+  # down, enough for Traefik to stop routing to it. Every service has a single
+  # container, hence the index 0.
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      namespace: circleguard
+    patch: |-
+      - op: add
+        path: /spec/template/spec/terminationGracePeriodSeconds
+        value: 45
+      - op: add
+        path: /spec/template/spec/containers/0/lifecycle
+        value:
+          preStop:
+            exec:
+              command: ["sleep", "10"]
+
+  # A rolling update and a canary each need room for one extra pod. With the
+  # quota at 2560Mi the services already request 2304Mi, so the surge pod of
+  # promotion (512Mi) would be rejected and the rollout would hang.
+  - target:
+      version: v1
+      kind: ResourceQuota
+      name: circleguard-quota
+      namespace: circleguard
+    patch: |-
+      - op: replace
+        path: /spec/hard/requests.memory
+        value: 3072Mi
+      - op: replace
+        path: /spec/hard/limits.memory
+        value: 8Gi
