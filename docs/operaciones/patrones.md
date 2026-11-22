@@ -305,7 +305,7 @@ push a dev ─► Build ─► Tests ─► Integration ─► SonarQube ─► 
 
 | Evidencia | Dónde |
 |-----------|-------|
-| Tag semántico de cada imagen publicada | Nexus `100.31.132.57:8082/circleguard/*` |
+| Tag semántico de cada imagen publicada | Nexus `<registry>/circleguard/*`; overlays Kubernetes usan `10.20.1.230:8082/circleguard/*` |
 | Misma versión en los tres ambientes | `promotion-record.txt` (artefacto del build) |
 | Despliegue condicionado a salud | Etapas *Deploy*, *Verify deployment* y *Smoke tests* del pipeline |
 | Aprobador de prod | Registro del `input` de Jenkins y `promotion-record.txt` |

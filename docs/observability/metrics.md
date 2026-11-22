@@ -25,12 +25,13 @@ interpretar los dashboards y las alertas.
 | node-exporter | `prom/node-exporter:v1.8.2` | CPU, memoria, disco y red de cada nodo (DaemonSet). |
 | Grafana | `grafana/grafana:11.3.1` | Dashboards. El datasource y los dashboards se cargan solos al arrancar. |
 
-Los manifiestos están en [`infra/k8s/observability/`](../../infra/k8s/observability/) y cada
-overlay (`dev`, `stage`, `prod`) los incluye.
+Los manifiestos están en [`infra/k8s/platform/base/observability/`](../../infra/k8s/platform/base/observability/) y cada
+overlay de plataforma (`dev`, `stage`, `prod`) los incluye. Los overlays de aplicación usan solo el componente
+`scrape-annotations` para añadir anotaciones a los Deployments de `circleguard`.
 
 ## 2. Configuración de scraping de Prometheus
 
-El archivo es [`infra/k8s/observability/prometheus/prometheus.yml`](../../infra/k8s/observability/prometheus/prometheus.yml).
+El archivo es [`infra/k8s/platform/base/observability/prometheus/prometheus.yml`](../../infra/k8s/platform/base/observability/prometheus/prometheus.yml).
 
 | Job | Cómo encuentra los targets | Qué lee |
 |---|---|---|
@@ -43,7 +44,7 @@ El archivo es [`infra/k8s/observability/prometheus/prometheus.yml`](../../infra/
 ### Anotaciones de los microservicios
 
 Los Deployments de los servicios no llevan las anotaciones escritas a mano. Las agrega el
-componente de Kustomize [`observability/scrape-annotations`](../../infra/k8s/observability/scrape-annotations/kustomization.yaml),
+componente de Kustomize [`observability/scrape-annotations`](../../infra/k8s/platform/base/observability/scrape-annotations/kustomization.yaml),
 que cada overlay incluye en `components:`. Parcha todos los Deployments del namespace
 `circleguard` cuyo nombre sigue el patrón `circleguard-<servicio>-service`:
 
@@ -69,7 +70,7 @@ Prometheus añade a cada métrica las etiquetas `service` (de `app.kubernetes.io
 ### Reglas de red
 
 La política base ya permite que el namespace de observabilidad entre a `circleguard` y
-`circleguard-data`. [`observability/networkpolicies.yaml`](../../infra/k8s/observability/networkpolicies.yaml)
+`circleguard-data`. [`observability/networkpolicies.yaml`](../../infra/k8s/platform/base/observability/networkpolicies.yaml)
 permite además que Prometheus y kube-state-metrics lleguen a la API de Kubernetes
 (`10.43.0.1:443` y los nodos en `:6443`), necesaria para descubrir los targets y leer cAdvisor.
 
@@ -78,17 +79,17 @@ permite además que Prometheus y kube-state-metrics lleguen a la API de Kubernet
 ### 3.1 Crear el usuario administrador de Grafana
 
 La contraseña **no se guarda en el repositorio**. Grafana la lee del Secret `grafana-admin`, que se
-crea con el script [`create-grafana-secret.sh`](../../infra/k8s/observability/create-grafana-secret.sh):
+crea con el script [`create-grafana-secret.sh`](../../infra/k8s/platform/base/observability/create-grafana-secret.sh):
 
 ```bash
 kubectl config use-context <contexto-del-ambiente>
-kubectl apply -k infra/k8s/overlays/dev          # crea el namespace si no existe
-infra/k8s/observability/create-grafana-secret.sh
+kubectl apply -k infra/k8s/platform/overlays/dev # crea el namespace si no existe
+infra/k8s/platform/base/observability/create-grafana-secret.sh
 ```
 
 - Sin variables, crea el usuario `admin` con una contraseña aleatoria de 32 caracteres y la muestra
   **una sola vez**. Guárdala en el gestor de contraseñas del equipo o como credencial de Jenkins.
-- Para usar una contraseña propia: `GRAFANA_ADMIN_PASSWORD='...' infra/k8s/observability/create-grafana-secret.sh`
+- Para usar una contraseña propia: `GRAFANA_ADMIN_PASSWORD='...' infra/k8s/platform/base/observability/create-grafana-secret.sh`
   (mínimo 12 caracteres). `GRAFANA_ADMIN_USER` cambia el usuario.
 - La contraseña pasa a `kubectl` por un descriptor de archivo, no queda en el historial de la
   terminal ni en la lista de procesos.
@@ -108,7 +109,7 @@ kubectl get secret grafana-admin -n circleguard-observability \
 ### 3.2 Aplicar
 
 ```bash
-kubectl apply -k infra/k8s/overlays/dev     # o stage / prod
+kubectl apply -k infra/k8s/platform/overlays/dev     # o stage / prod
 kubectl get pods -n circleguard-observability
 ```
 
@@ -178,7 +179,7 @@ sondas de Kubernetes y el scraping con el tráfico real.
 
 ## 6. Dashboards
 
-Están en [`infra/k8s/observability/grafana/dashboards/`](../../infra/k8s/observability/grafana/dashboards/)
+Están en [`infra/k8s/platform/base/observability/grafana/dashboards/`](../../infra/k8s/platform/base/observability/grafana/dashboards/)
 y Grafana los carga al arrancar (carpeta **CircleGuard**, no editables desde la interfaz: los cambios
 se hacen en el JSON y se aplican con `kubectl apply -k`).
 
@@ -202,7 +203,7 @@ Las métricas de negocio se calculan a partir de las peticiones HTTP. Una valida
 
 ## 7. Alertas
 
-Definidas en [`prometheus/alerts.yml`](../../infra/k8s/observability/prometheus/alerts.yml). Se ven en
+Definidas en [`prometheus/alerts.yml`](../../infra/k8s/platform/base/observability/prometheus/alerts.yml). Se ven en
 Prometheus (**Alerts**) y en el panel *Firing alerts* del dashboard de servicios. No hay
 Alertmanager, así que no se envían notificaciones.
 

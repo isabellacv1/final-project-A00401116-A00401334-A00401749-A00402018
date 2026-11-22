@@ -29,8 +29,8 @@ y Kubernetes guarda esa salida en `/var/log/pods`, de donde la lee Alloy.
 
 Manifiestos:
 
-- [`infra/k8s/observability/loki/`](../../infra/k8s/observability/loki/): Deployment, Service, PVC y configuración (`loki.yml`).
-- [`infra/k8s/observability/alloy/`](../../infra/k8s/observability/alloy/): DaemonSet, permisos y configuración (`config.alloy`).
+- [`infra/k8s/platform/base/observability/loki/`](../../infra/k8s/platform/base/observability/loki/): Deployment, Service, PVC y configuración (`loki.yml`).
+- [`infra/k8s/platform/base/observability/alloy/`](../../infra/k8s/platform/base/observability/alloy/): DaemonSet, permisos y configuración (`config.alloy`).
 
 ## 2. Cómo se identifica cada registro
 
@@ -63,10 +63,10 @@ la línea que la registró, así que cada error aparece como **una sola entrada*
 
 ## 3. Despliegue
 
-Va incluido en el stack de observabilidad, así que se aplica con el overlay:
+Va incluido en el stack de observabilidad, así que se aplica con el overlay de plataforma:
 
 ```bash
-kubectl apply -k infra/k8s/overlays/dev     # o stage / prod
+kubectl apply -k infra/k8s/platform/overlays/dev     # o stage / prod
 kubectl get pods -n circleguard-observability
 ```
 

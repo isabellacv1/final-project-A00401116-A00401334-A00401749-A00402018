@@ -225,11 +225,16 @@ push dev ─► Build ─► Pruebas ─► Integración ─► SonarQube ─►
 - **Evidencia:** cada promoción agrega una entrada a `promotion-record.txt` (versión, ruta,
   aprobador, fecha y URL del build) y el archivo se archiva como artefacto del build.
 
-El despliegue descarga las imágenes publicadas por el mismo build (versión semántica, nunca
-`latest`) desde `100.31.132.57:8082` y lee la configuración del entorno desde
-[`deploy/environments`](../../deploy/environments). Solo la rama `dev` despliega
-automáticamente; `stage` y `prod` se promueven en el flujo de promoción de versiones. Ver
-[`deploy/README.md`](../../deploy/README.md).
+El despliegue usa `deployKubernetes()` con las imágenes publicadas por el mismo build (versión
+semántica, nunca `latest`) desde el registro interno de Kubernetes
+(`10.20.1.230:8082` por defecto). El paso copia el overlay de aplicación
+`infra/k8s/overlays/<entorno>`, fija las nueve imágenes, renderiza con `kubectl kustomize` y
+rechaza cualquier recurso fuera de `circleguard` o de los kinds de aplicación antes de archivar
+el manifiesto o ejecutar `apply`. No existe `--prune`. La plataforma (namespaces, RBAC, cuotas,
+NetworkPolicies y observabilidad) se aplica por separado desde
+`infra/k8s/platform/overlays/<entorno>` con una identidad administradora. Solo la rama `dev`
+despliega automáticamente; `stage` y `prod` se promueven en el flujo de promoción de versiones.
+Ver [`infra/k8s/README.md`](../../infra/k8s/README.md).
 
 Después de cada ejecución, incluso si una etapa falla, Jenkins publica los resultados JUnit y
 archiva los reportes de pruebas y de cobertura JaCoCo. Los benchmarks de rendimiento no forman

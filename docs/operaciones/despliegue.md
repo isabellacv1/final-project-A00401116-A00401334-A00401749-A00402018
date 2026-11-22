@@ -1,9 +1,10 @@
 # Despliegue
 
 Este documento describe cómo se construyen las imágenes de CircleGuard, dónde se publican,
-cómo se despliegan en AWS y cómo se promueven entre entornos. El pipeline que ejecuta estos
-pasos se explica en [`pipeline.md`](pipeline.md); el detalle de los archivos de despliegue
-está en [`deploy/README.md`](../../deploy/README.md).
+cómo se despliegan en Kubernetes y cómo se promueven entre entornos. El pipeline que ejecuta
+estos pasos se explica en [`pipeline.md`](pipeline.md); el detalle de los manifiestos está en
+[`infra/k8s/README.md`](../../infra/k8s/README.md). Las secciones de Compose al final se
+conservan como referencia del despliegue anterior y para ejecución local.
 
 ## Qué se despliega
 
@@ -20,6 +21,27 @@ El compose de despliegue (`deploy/docker-compose.yml`) levanta nueve componentes
 | Dashboard | `circleguard/dashboard-service` | 8084 | `services/circleguard-dashboard-service/Dockerfile` |
 | File | `circleguard/file-service` | 8085 | `services/circleguard-file-service/Dockerfile` |
 | Web | `circleguard/web` | 8081 → 8080 | `mobile/Dockerfile` |
+
+## Despliegue actual en Kubernetes
+
+El pipeline ya no usa SSH ni Docker Compose para desplegar. La etapa `Deploy` llama a
+`deployKubernetes()`, que:
+
+1. Copia el overlay de aplicación `infra/k8s/overlays/<entorno>` a un directorio temporal.
+2. Fija las nueve imágenes a `env.IMAGE_VERSION` con `kustomize edit set image`.
+3. Renderiza con `kubectl kustomize` (sin acceso al clúster) y valida el resultado antes de
+   archivarlo: no puede estar vacío, todos los recursos deben estar en `circleguard` y los
+   únicos kinds permitidos son `ConfigMap`, `Deployment`, `Service`, `Ingress` y
+   `PersistentVolumeClaim`.
+4. Comprueba el contexto activo y ejecuta `apply --dry-run=server` y `apply` con `--context` y
+   `--namespace` explícitos. No se usa `--prune`.
+5. Espera el rollout de los nueve Deployments y archiva el manifiesto validado como artefacto.
+
+La plataforma es un root independiente: `infra/k8s/platform/overlays/<entorno>` contiene
+namespaces, RBAC, cuotas, límites, NetworkPolicies y observabilidad. Lo aplica infraestructura
+con una identidad administradora, antes de la aplicación. El middleware sigue en
+`infra/k8s/data/`, también como root separado. La librería no crea Secrets ni concede permisos
+nuevos.
 
 Configuración de los servicios agregados en la Parte 2:
 
@@ -116,46 +138,43 @@ Las mismas instrucciones aplican a `file` y `dashboard` cambiando el nombre del 
 
 ## Registro Nexus
 
-Las imágenes se publican en el repositorio Docker de Nexus:
+Las imágenes se publican en el repositorio Docker de Nexus y los nodos k3s las descargan por su
+dirección interna:
 
 ```
-100.31.132.57:8082/circleguard/<servicio>:<version>
+<registry-de-publicación>/circleguard/<servicio>:<version>   # docker push del pipeline
+10.20.1.230:8082/circleguard/<servicio>:<version>            # imágenes de los overlays Kubernetes
 ```
 
-- El registro de los entornos de AWS es `100.31.132.57:8082` (definido en
-  `deploy/environments/*.env`).
-- Las instancias tienen ese registro en `insecure-registries` de
-  `/etc/docker/daemon.json`, porque el conector no usa TLS.
-- La librería recibe el registro por el parámetro `registry` de `circleguardPipeline()`. Su
-  valor por defecto es `localhost:8082`, que funciona cuando Jenkins y Nexus comparten el
-  host: el `docker push` lo ejecuta el daemon del host a través del socket de Docker.
-- Los entornos remotos usan `100.31.132.57:8082`, la dirección pública del mismo Nexus.
+- `registry` controla el `docker push` del pipeline. Su valor por defecto es `localhost:8082`,
+  que funciona cuando Jenkins y Nexus comparten el host.
+- `k8sRegistry` controla el prefijo que `deployKubernetes()` escribe en las imágenes del overlay;
+  su valor por defecto es `10.20.1.230:8082`, la dirección interna de Nexus en la VPC.
+- Cada nodo k3s debe confiar en el registro HTTP (`insecure-registries` en containerd) y tener
+  el Secret de pull `nexus-pull-secret` en `circleguard`, creado fuera de Git.
+- No se usa `latest`: todas las referencias llevan la versión semántica de este build.
 
 ## Entornos
 
-| Entorno | Archivo | Host | Perfil Spring | Cuándo se despliega |
-|---------|---------|------|---------------|---------------------|
-| `dev` | `deploy/environments/dev.env` | `54.83.254.142` | `dev` | Automático en cada push a `dev`. |
-| `stage` | `deploy/environments/stage.env` | `184.192.198.69` | `stage` | Promoción automática desde `dev` tras las validaciones y E2E. |
-| `prod` | `deploy/environments/prod.env` | `98.92.231.157` | `prod` | Promoción desde `stage` con aprobación manual (`input`). |
+| Entorno | Overlay de aplicación | Perfil Spring | Cuándo se despliega |
+|---------|-----------------------|---------------|---------------------|
+| `dev` | `infra/k8s/overlays/dev` | `dev` | Automático en cada push a `dev`. |
+| `stage` | `infra/k8s/overlays/stage` | `stage` | Promoción automática desde `dev` tras las validaciones y E2E. |
+| `prod` | `infra/k8s/overlays/prod` | `prod` | Promoción desde `stage` con aprobación manual (`input`). |
 
-Cada archivo define `HOST`, `SSH_USER`, `REGISTRY`, `SPRING_PROFILES_ACTIVE`, `WEB_HOST`, el nivel
-de logs (`LOG_LEVEL`), las vigencias (`JWT_EXPIRATION`, `QR_EXPIRATION`) y el endpoint de
-PostgreSQL (`DB_HOST`, `DB_PORT`). La versión (`VERSION`) no se guarda en el archivo: la escribe el
-pipeline con la versión publicada por el mismo build.
+Cada overlay parchea `circleguard-common-config` con el perfil activo y los valores de CORS y SMTP
+del entorno. Antes de desplegar, hay que sustituir los marcadores `.invalid` y los secretos
+`REEMPLAZAR` por valores reales fuera de Git. El namespace es fijo: `circleguard`.
 
-Las credenciales no están en estos archivos: viven en la credencial de Jenkins
-`<ambiente>-app-secrets` (tipo *Secret file*, formato de `deploy/secrets/secrets.env.example`). El
-paso de despliegue la agrega al archivo de entorno y copia el resultado al host como `.env`
-(permisos `600`); ver [`deploy/README.md`](../../deploy/README.md#secrets-on-the-host).
+### Credenciales y configuración de Jenkins
 
-### Credenciales de Jenkins
-
-| Credencial | Uso |
-|------------|-----|
-| `dev-credential`, `stage-credential`, `prod-credential` | Clave SSH del usuario `ubuntu` de cada entorno. |
-| `dev-app-secrets`, `stage-app-secrets`, `prod-app-secrets` | *Secret file* con los secretos de la aplicación de cada entorno (HU-34). Obligatoria para desplegar. |
-| `nexus-credential` | Usuario y contraseña para publicar en Nexus. |
+| Credencial / parámetro | Uso |
+|------------------------|-----|
+| `dev-kubeconfig`, `stage-kubeconfig`, `prod-kubeconfig` | *Secret file* con el kubeconfig de cada clúster; se sustituye con `kubeconfigCredentialId`. |
+| `k8sContext` / `k8sContexts` | Contexto activo esperado por entorno. Debe coincidir con `kubectl config current-context`. |
+| `k8sIngressUrls` | URL base por entorno para verificación, smoke tests y E2E. |
+| `k8sRegistry` | Registro interno usado por los nodos k3s (`10.20.1.230:8082` por defecto). |
+| `nexus-credential` | Usuario y contraseña para publicar las imágenes. |
 | `e2e-credential` / `e2e-credentials` | Usuario de prueba para los smoke tests y para Playwright. |
 | `git-credential` | Lectura del repositorio y reporte de estado a GitHub. |
 | `discord-webhook-url` | Webhook de Discord para notificar fallos. |
@@ -169,13 +188,13 @@ push a dev
 Build ─► Tests ─► Integration tests ─► SonarQube ─► Publish images
    │
    ▼
-Deploy dev (SSH + docker compose pull/up --wait)
+Deploy dev (Kustomize + kubectl apply, sin prune)
    │
    ▼
-Verify deployment (HTTP)
+Verify deployment (HTTP contra el Ingress)
    │
    ▼
-Smoke tests (HTTP funcional en el host)
+Smoke tests (HTTP funcional contra el Ingress)
    │
    ▼
 E2E tests (Playwright contra dev)
@@ -192,33 +211,32 @@ el pipeline construye, prueba, analiza y publica imágenes, pero no despliega.
 
 ## Cómo se ejecuta el despliegue
 
-La librería `deployEnvironment` copia al host los archivos necesarios y ejecuta Docker Compose
-por SSH:
+La librería `deployKubernetes()` no copia archivos a hosts remotos. Trabaja sobre una copia local
+del overlay de aplicación y ejecuta este orden:
 
-1. Copia `docker-compose.dev.yml`, `init-db.sql`, `deploy/docker-compose.yml` y un archivo
-   `.env` generado con la configuración del entorno más `VERSION`.
-2. Ejecuta `docker compose -f docker-compose.dev.yml -f deploy/docker-compose.yml pull`.
-3. Ejecuta `docker compose ... up -d --wait --wait-timeout 600`, de modo que el paso solo
-   termina cuando los contenedores están saludables.
-4. Muestra `docker compose ... ps`.
+1. `mkdir`, `rm -rf` y `cp -R` para preparar `.deploy-<entorno>-<build>`.
+2. Nueve `kustomize edit set image` con `k8sRegistry/circleguard/<servicio>:IMAGE_VERSION`.
+3. `kubectl kustomize <overlay-temporal>` capturado en memoria.
+4. Validación de alcance: render no vacío, namespace `circleguard` en todos los recursos y kinds
+   permitidos. Si falla, no se archiva ni se aplica nada.
+5. `writeFile` + `archiveArtifacts` del manifiesto validado en `k8s/rendered-<entorno>-<build>.yaml`.
+6. `kubectl config current-context`, `apply --dry-run=server -k` y `apply -k`, todos con
+   `--context` y `--namespace` explícitos.
+7. Nueve `kubectl rollout status deployment/...` con el timeout configurado.
+8. `rm -rf` del overlay temporal en `finally`, incluso si falla render, apply o rollout.
 
-Los dos compose se combinan:
-
-- `docker-compose.dev.yml` aporta el middleware: PostgreSQL, Neo4j, Zookeeper, Kafka, Redis
-  y OpenLDAP, con sus healthchecks, la red `circleguard-net` y los volúmenes de datos.
-- `deploy/docker-compose.yml` aporta la capa de aplicación y consume las imágenes
-  `${REGISTRY}/circleguard/*:${VERSION}`.
-
-`docker-compose.app.yml` es la variante de **desarrollo local**: construye las imágenes en el
-host y usa la etiqueta fija `1.0.0`. No se usa para desplegar en AWS.
+`verifyIngress()` comprueba las rutas HTTP contra `k8sIngressUrls`, `smokeTests()` ejecuta las
+comprobaciones funcionales y `runE2E()` ejecuta Playwright posteriormente. Ninguno usa SSH ni
+NodePort.
 
 ## Verificación
 
-El despliegue no se considera exitoso solo porque los contenedores arranquen:
+El despliegue no se considera exitoso solo porque los pods arranquen:
 
 | Etapa | Qué comprueba |
 |-------|---------------|
-| `verifyServices` | Hace una petición HTTP a cada componente. Un código menor a 500 cuenta como disponible; reintenta hasta 20 veces. |
+| `deployKubernetes` | Rollout de los nueve Deployments con `kubectl rollout status`. |
+| `verifyIngress` | Petición HTTP a cada ruta del Ingress con reintentos; un `404` siempre falla. |
 | `smokeTests` | Comprueba códigos y contenido concretos: home de la web, `env-config.js`, validación del gateway, listado de formularios, estadísticas de promotion, identidad protegida y login válido/inválido. |
 | `runE2E` | Ejecuta Playwright en un contenedor contra la app desplegada en `dev`. Es la condición para promover a `stage`. |
 
@@ -241,27 +259,42 @@ verifica los servicios y ejecuta los smoke tests del entorno destino.
 ## Rollback
 
 El rollback se apoyará en los **tags semánticos**: cada versión desplegada tiene una imagen
-publicada con su tag (`100.31.132.57:8082/circleguard/<servicio>:<version>`), por lo que
-volver a una versión anterior consiste en desplegar de nuevo ese tag. Esta funcionalidad la
-está implementando otro integrante del equipo; el pipeline actual todavía no expone un paso
-automatizado de reversión.
+publicada con su tag (`10.20.1.230:8082/circleguard/<servicio>:<version>` en Kubernetes), por lo
+que volver a una versión anterior consiste en desplegar de nuevo ese tag. El pipeline actual
+todavía no expone un paso automatizado de reversión.
 
 ## Operación manual
 
-Desde la raíz del repositorio, con `REGISTRY` y `VERSION` definidos:
+Desde la raíz del repositorio, primero renderiza y revisa los tres roots; no sustituyas el
+contexto real ni apliques nada hasta comprobarlo:
 
 ```bash
-# Validar la configuración combinada
-docker compose -f docker-compose.dev.yml -f deploy/docker-compose.yml config
+kubectl config current-context
 
-# Desplegar (en el host de destino)
-docker compose -f docker-compose.dev.yml -f deploy/docker-compose.yml up -d --wait
+# Plataforma (identidad administradora)
+kubectl kustomize infra/k8s/platform/overlays/dev
+kubectl diff -k infra/k8s/platform/overlays/dev
+
+# Datos (identidad administradora)
+kubectl kustomize infra/k8s/data
+kubectl diff -k infra/k8s/data
+
+# Aplicación (28 recursos en circleguard)
+kubectl kustomize infra/k8s/overlays/dev
+kubectl diff -k infra/k8s/overlays/dev
 ```
 
-## Requisitos del host de destino
+Repite con `stage` y `prod`. El pipeline hace el mismo render de aplicación, añade la validación
+de alcance y ejecuta `apply` con el contexto y namespace configurados.
 
-- Docker Engine con el registro en `insecure-registries`.
-- Usuario SSH `ubuntu` y la credencial correspondiente en Jenkins.
-- Acceso al registro `100.31.132.57:8082`.
-- Los puertos publicados por el compose deben ser alcanzables desde donde se ejecutan las
-  verificaciones y desde el navegador del usuario.
+## Requisitos del clúster y de Jenkins
+
+- Los tres clústeres k3s deben existir y los namespaces de plataforma deben estar creados.
+- El registro interno `10.20.1.230:8082` debe ser alcanzable desde los nodos; cada nodo debe
+  confiar en el registro HTTP según su configuración de containerd.
+- `nexus-pull-secret` y los Secrets de aplicación deben existir previamente en `circleguard`;
+  la librería no los crea ni los imprime.
+- Las credenciales `<entorno>-kubeconfig`, los contextos y las URLs del Ingress deben estar
+  configurados en Jenkins antes de habilitar `deploy: true`.
+- El Ingress de Traefik debe ser alcanzable desde el agente de Jenkins para las verificaciones
+  HTTP, los smoke tests y E2E.
