@@ -7,7 +7,7 @@ services:
       args:
         DOCKER_GID: ${DOCKER_GID}
 
-    image: circleguard-jenkins:1.0.0
+    image: circleguard-jenkins:1.0.1
     container_name: jenkins
     restart: unless-stopped
 
