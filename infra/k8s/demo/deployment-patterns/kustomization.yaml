@@ -1,0 +1,48 @@
+# HU-30 - Local demo of the deployment patterns (Rolling Update + Canary) on k3d.
+#
+# Same manifests as the environments (base + rolling-update + canary-dashboard),
+# reduced to what the demo needs so it fits on a laptop: PostgreSQL and the
+# dashboard service; the other seven services are scaled to zero.
+# Used by scripts/k8s/demo-up.sh. Not used by the pipeline.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+  - ../../data/postgres
+
+components:
+  - ../../components/rolling-update
+  - ../../components/canary-dashboard
+
+# Images built locally (docker compose build) and imported into the k3d nodes.
+images:
+  - name: 10.20.1.230:8082/circleguard/dashboard-service
+    newName: circleguard/dashboard-service
+    newTag: 1.0.0
+
+patches:
+  # Only the dashboard runs in the demo.
+  - target:
+      kind: Deployment
+      namespace: circleguard
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 0
+  - target:
+      kind: Deployment
+      name: circleguard-dashboard-service
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  # The base keeps a placeholder for the Nexus credentials; the demo pulls nothing,
+  # so an empty but valid Docker config is enough.
+  - target:
+      kind: Secret
+      name: nexus-pull-secret
+    patch: |-
+      - op: replace
+        path: /data/.dockerconfigjson
+        value: eyJhdXRocyI6e319

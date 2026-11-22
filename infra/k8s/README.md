@@ -1,6 +1,6 @@
 # CircleGuard — configuración base de Kubernetes
 
-Esta carpeta prepara K3s para CircleGuard y separa dos responsabilidades: la aplicación que despliega Jenkins y la plataforma que aplica infraestructura. La aplicación son nueve componentes (ocho servicios backend y la web) más su configuración; el middleware de datos vive en `data/` y se aplica como root independiente.
+Esta carpeta prepara K3s para CircleGuard y separa dos responsabilidades: la plataforma que aplica infraestructura (namespaces, cuotas, RBAC y observabilidad) y la aplicación que despliega Jenkins. La aplicación son nueve componentes (ocho servicios backend y la web) más su configuración; el middleware de datos vive en `data/` y se aplica como root independiente. Los componentes de despliegue de la HU-30 viven en `components/`: `rolling-update` se habilita desde los overlays y `canary-dashboard` se usa de forma manual/en la demo, no lo aplica el pipeline.
 
 Los overlays de aplicación (`overlays/<entorno>`) solo renderizan recursos en el namespace `circleguard`. Los overlays de plataforma (`platform/overlays/<entorno>`) contienen namespaces, cuotas, límites, reglas de red, RBAC y observabilidad. Terraform y AWS se configuran fuera de esta carpeta; el pipeline se configura en el `Jenkinsfile` raíz. K3s ya trae Traefik y `local-path`; aquí no se cambian.
 
@@ -36,12 +36,17 @@ infra/k8s/
 │   │   ├── limitranges.yaml
 │   │   ├── networkpolicies.yaml
 │   │   ├── rbac-deployer.yaml
-│   │   ├── observability/  # Prometheus, Grafana, Loki y Alloy
+│   │   ├── observability/  # Prometheus, Grafana, Loki, Alloy y scrape-annotations
 │   │   └── kustomization.yaml
 │   └── overlays/
 │       ├── dev/kustomization.yaml
 │       ├── stage/kustomization.yaml
 │       └── prod/kustomization.yaml
+├── components/             # HU-30: patrones de despliegue
+│   ├── rolling-update/     # estrategia sin caída para los 9 Deployments
+│   └── canary-dashboard/   # reparto por pesos de Traefik (manual/demo)
+├── demo/
+│   └── deployment-patterns/ # demo local en k3d de los patrones (no la usa el pipeline)
 ├── overlays/               # aplicación desplegada por Jenkins
 │   ├── dev/kustomization.yaml
 │   ├── stage/kustomization.yaml
@@ -51,8 +56,10 @@ infra/k8s/
 
 - `base/`: base de aplicación. Fija `namespace: circleguard` y solo incluye `base/apps/`.
 - `data/`: middleware de HU-25 (PostgreSQL, Neo4j, Redis, ZooKeeper, Kafka y OpenLDAP). No lo incluyen los overlays; se aplica como root independiente.
-- `platform/`: base y overlays de plataforma. `platform/base/observability/` contiene métricas y dashboards (Prometheus, Grafana) y logs centralizados (Loki, Alloy). Ver [`metrics.md`](../../docs/observability/metrics.md) y [`logs.md`](../../docs/observability/logs.md).
-- `overlays/`: ajustes por ambiente de la aplicación; incluyen `base`, el componente `scrape-annotations` y las transformaciones de imágenes de las nueve aplicaciones. No incluyen plataforma ni observabilidad.
+- `platform/`: base y overlays de plataforma. `platform/base/observability/` contiene métricas y dashboards (Prometheus, Grafana), logs centralizados (Loki, Alloy) y el componente `scrape-annotations` que anota los Deployments de aplicación. Ver [`metrics.md`](../../docs/observability/metrics.md) y [`logs.md`](../../docs/observability/logs.md).
+- `components/`: componentes de Kustomize de la HU-30. `rolling-update` fija la estrategia sin caída de los nueve Deployments (`maxUnavailable: 0`, `maxSurge: 1`, `preStop`) y se incluye en los overlays de aplicación; `canary-dashboard` crea el Service y las rutas de Traefik del canary. Los operan `scripts/k8s/rollout.sh` y `scripts/k8s/canary.sh`. Ver [`patrones.md`](../../docs/operaciones/patrones.md#3-despliegue).
+- `demo/deployment-patterns/`: los mismos manifiestos reducidos a PostgreSQL y dashboard, para demostrar los patrones en un clúster k3d local (`scripts/k8s/demo-up.sh`).
+- `overlays/`: ajustes por ambiente de la aplicación; incluyen `base`, el componente `scrape-annotations` desde la plataforma y `rolling-update`, además de las transformaciones de imágenes de las nueve aplicaciones. No incluyen plataforma, observabilidad ni el canary: el pipeline solo acepta los cinco tipos de recursos de aplicación y el deployer no tiene permisos sobre CRDs de Traefik.
 - `README.md`: esta guía.
 
 No se usa `namePrefix` porque los servicios ya se llaman `postgres`, `kafka`, `auth`, etc. Los tres namespaces se declaran en la plataforma y se crean antes de desplegar la aplicación.
@@ -267,7 +274,7 @@ Son valores **provisionales**. No están validados contra la capacidad real de l
 
 | Namespace | CPU pedido | Memoria pedida | Límite CPU | Límite memoria | PVC solicitados |
 |---|---:|---:|---:|---:|---:|
-| `circleguard` | 600 m | 2560 Mi | 5 | 7 Gi | 8 Gi |
+| `circleguard` | 600 m | 3072 Mi | 5 | 8 Gi | 8 Gi |
 | `circleguard-data` | 700 m | 2560 Mi | 4 | 6 Gi | 16 Gi |
 | `circleguard-observability` | 400 m | 1536 Mi | 2 | 3 Gi | 4 Gi |
 
@@ -278,6 +285,8 @@ Son valores **provisionales**. No están validados contra la capacidad real de l
 | `circleguard` | 1400 m | 6 Gi | 6 | 12 Gi | 10 Gi |
 | `circleguard-data` | 1200 m | 4 Gi | 4 | 8 Gi | 20 Gi |
 | `circleguard-observability` | 600 m | 2 Gi | 2 | 4 Gi | 6 Gi |
+
+En `dev` y `stage`, `infra/k8s/platform/base/resourcequotas.yaml` fija 3072 Mi / 8 Gi para `circleguard` (los ocho backends piden 2304 Mi y la web 64 Mi): así el Rolling Update tiene sitio para el pod extra de 512 Mi de promotion. En `prod` el overlay de plataforma eleva la cuota a 6 Gi / 12 Gi.
 
 Los límites de memoria suman más de lo que tienen los nodos. Es una decisión consciente para permitir picos, pero no garantiza que todo quepa. La programación real depende de la capacidad disponible, de los pods ya creados y de posibles taints.
 
@@ -398,7 +407,7 @@ Los ocho Deployments backend usan:
 
 Siete servicios usan request `50m`/`256Mi` y limit `500m`/`768Mi`. Promotion usa request `150m`/`512Mi` y limit `1000m`/`1Gi`.
 
-El total de los ocho backends es requests `500m`/`2304Mi` y limits `4500m`/`6400Mi` (6,25Gi). La cuota dev/stage de `circleguard` es requests `600m`/`2560Mi`, limits `5`/`7Gi`, storage `8Gi`, PVC `4`, Services `12`, Deployments `12`, Ingress `1`, ConfigMaps `8` y Secrets `8`. El frontend `web` también se despliega desde estos overlays, así que la cuota real debe revisarse con los nueve componentes antes de aplicar.
+El total de los ocho backends es requests `500m`/`2304Mi` y limits `4500m`/`6400Mi` (6,25Gi); con la web (`64Mi`) los nueve componentes piden `2368Mi`. La cuota dev/stage de `circleguard` es requests `600m`/`3072Mi`, limits `5`/`8Gi`, storage `8Gi`, PVC `4`, Services `12`, Deployments `12`, Ingress `1`, ConfigMaps `8` y Secrets `8`, con margen para el pod extra del Rolling Update. Verificar la cuota real antes de aplicar.
 
 ### Storage
 
@@ -426,7 +435,7 @@ Solo se ajustaron las dos reglas `allow-traefik-ingress` existentes para añadir
 
 ### Validación de las aplicaciones
 
-`kubectl kustomize infra/k8s/overlays/dev` renderiza 28 recursos de aplicación, todos en `circleguard`: 9 Deployments, 9 Services, 8 ConfigMaps, 1 Ingress y 1 PVC. No incluye observabilidad ni recursos cluster-scoped. Las nueve imágenes apuntan al registry del entorno con el tag correspondiente; no se usa `latest`. Repetir para `stage` y `prod`.
+`kubectl kustomize infra/k8s/overlays/dev` renderiza 28 recursos de aplicación, todos en `circleguard`: 9 Deployments, 9 Services, 8 ConfigMaps, 1 Ingress y 1 PVC. Los nueve Deployments llevan la estrategia del componente `rolling-update` y las anotaciones de scraping; no se usa `latest`. El canary no está incluido: el pipeline solo acepta `ConfigMap`, `Deployment`, `Service`, `Ingress` y `PersistentVolumeClaim`, y el deployer no tiene permisos sobre `TraefikService`/`IngressRoute`. Para validarlo, usar `kustomize build infra/k8s/demo/deployment-patterns`. Repetir el render de aplicación para `stage` y `prod`.
 
 `kubectl kustomize infra/k8s/platform/overlays/dev` renderiza 61 recursos de plataforma: 3 Namespaces, 3 ResourceQuota, 3 LimitRange, 17 NetworkPolicies, 4 ClusterRole, 3 ClusterRoleBinding, 3 RoleBinding, 4 ServiceAccount, 6 ConfigMaps, 4 Deployments, 2 DaemonSets, 5 Services, 3 PVC y 1 Ingress de observabilidad. `prod` mantiene los aumentos de cuotas. `kubectl kustomize infra/k8s/data` renderiza 5 StatefulSets, 1 Deployment, 6 Services, 5 PVC, 1 ConfigMap y 3 Secrets. No se aplicó nada al clúster.
 

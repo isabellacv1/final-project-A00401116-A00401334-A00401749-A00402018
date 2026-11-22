@@ -8,7 +8,7 @@ de que funciona.
 |------|--------|----------|---------|
 | Configuración | External Configuration | HU-34 | [1](#1-configuración-external-configuration) |
 | Resiliencia | Health Check + Restart Policy + Timeout, Retry y Circuit Breaker | HU-28 | [2](#2-resiliencia) |
-| Despliegue | Immutable Artifact + Environment Promotion + Health-gated Deployment | HU-13, HU-14, HU-15 | [3](#3-despliegue) |
+| Despliegue | Immutable Artifact + Environment Promotion + Health-gated Deployment; **Rolling Update + Canary** | HU-13, HU-14, HU-15, HU-30 | [3](#3-despliegue) |
 
 La operación diaria (imágenes, registro, pipeline) está en [`despliegue.md`](despliegue.md) y
 [`pipeline.md`](pipeline.md); los archivos de despliegue, en
@@ -258,50 +258,36 @@ docker logs <contenedor> | grep "Circuit breaker"           # circuito abierto e
 
 ### 3.1 Propósito
 
-Llevar una versión de CircleGuard de `dev` a `prod` de forma repetible, sabiendo que lo que llega
-a producción es **exactamente** lo que se probó, y sin dar por bueno un despliegue solo porque los
-contenedores arrancaron.
+Llevar una versión de CircleGuard de `dev` a `prod` de forma repetible y **reducir el riesgo de
+publicar una versión nueva**: que lo que llega a producción sea exactamente lo que se probó, que
+publicar no provoque caídas y que una versión defectuosa afecte a la menor cantidad posible de
+usuarios.
 
-### 3.2 Patrones y justificación
+### 3.2 Base: patrones del pipeline
 
 | Patrón | Qué resuelve | Implementación |
 |--------|--------------|----------------|
-| **Immutable Artifact** (*build once, deploy many*) | Lo que llega a prod es lo que se probó en dev | Cada build publica en Nexus `circleguard/<servicio>:<versión semántica>`; los hosts nunca construyen, solo hacen `pull` de ese tag. Nunca `latest` |
+| **Immutable Artifact** (*build once, deploy many*) | Lo que llega a prod es lo que se probó en dev | Cada build publica en Nexus `circleguard/<servicio>:<versión semántica>`; los ambientes nunca construyen, solo descargan ese tag. Nunca `latest` |
 | **Environment Promotion** | Avanzar entre ambientes con controles crecientes | `dev → stage` automático si pasan pruebas, smoke y E2E; `stage → prod` con aprobación manual registrada en `promotion-record.txt` |
-| **Health-gated Deployment** | No declarar éxito con un servicio caído | `docker compose up -d --wait` espera a que los healthchecks (sección 2.3) estén `healthy`; luego `verifyServices` y `smokeTests` por HTTP |
-
-Encaja con los otros dos patrones: la imagen inmutable es la misma en los tres ambientes porque
-la configuración se inyecta desde afuera (sección 1), y el *gate* de salud usa los healthchecks
-de readiness (sección 2).
-
-| Alternativa | Por qué no |
-|-------------|------------|
-| Construir en cada host | Lo desplegado en prod no sería lo probado en dev |
-| Blue-green / canary | Requieren balanceador y capacidad duplicada que la infraestructura actual (un host por ambiente) no tiene |
-| Promoción totalmente automática a prod | Producción exige una decisión humana trazable |
-
-### 3.3 Flujo
+| **Health-gated Deployment** | No declarar éxito con un servicio caído | El despliegue espera a que las sondas de readiness (sección 2.3) estén sanas; luego `verifyServices` y `smokeTests` por HTTP |
 
 ```
-push a dev ─► Build ─► Tests ─► Integration ─► SonarQube ─► Publish images (Nexus, tag semántico)
-                                                                   │
-   Deploy dev (pull + up --wait) ─► Verify ─► Smoke ─► E2E ◄───────┘
-                                                        │
-                    Promote to stage (automático, misma versión) ─► Verify + Smoke
-                                                        │
-                    Promote to prod (aprobación manual, misma versión) ─► Verify + Smoke
+push a dev ─► Build ─► Tests ─► Integration ─► SonarQube ─► Trivy ─► Publish images (tag semántico)
+                                                                          │
+   Deploy dev ─► Verify ─► Smoke ─► E2E ◄─────────────────────────────────┘
+                                     │
+          Promote to stage (automático, misma versión) ─► Verify + Smoke
+                                     │
+          Promote to prod (aprobación manual, misma versión) ─► Verify + Smoke
 ```
 
-### 3.4 Trade-offs
+Estos patrones deciden **qué** versión se publica y **cuándo**. La HU-30 decide **cómo** se
+reemplaza la versión en ejecución dentro de cada ambiente, ahora que los servicios se despliegan en
+Kubernetes (k3s, HU-23 a HU-25).
 
-| Decisión | Ventaja | Costo | Mitigación |
-|----------|---------|-------|------------|
-| Imagen inmutable por versión | Trazabilidad total versión ↔ imagen | Cada cambio exige un build y publicación | El pipeline lo automatiza |
-| Recreación en sitio (sin blue-green) | Sin infraestructura extra | Corte breve durante el `up` | `--wait` limita la ventana; los servicios arrancan en < 20 s |
-| Aprobación manual a prod | Decisión humana trazable | Más lenta | Solo en el último salto |
-| Rollback por tag semántico | Volver atrás es redesplegar un tag existente | Aún no hay un paso automatizado | Documentado en [`despliegue.md`](despliegue.md#rollback) |
+### 3.3 Patrones de despliegue evaluados (HU-30)
 
-### 3.5 Evidencia
+Restricciones medidas en el proyecto:
 
 | Evidencia | Dónde |
 |-----------|-------|
@@ -309,6 +295,137 @@ push a dev ─► Build ─► Tests ─► Integration ─► SonarQube ─► 
 | Misma versión en los tres ambientes | `promotion-record.txt` (artefacto del build) |
 | Despliegue condicionado a salud | Etapas *Deploy*, *Verify deployment* y *Smoke tests* del pipeline |
 | Aprobador de prod | Registro del `input` de Jenkins y `promotion-record.txt` |
+
+Restricciones medidas en el proyecto:
+
+| Restricción | Valor | Fuente |
+|-------------|-------|--------|
+| Nodos | `m7i-flex.large` (2 vCPU, 8 GB); **un solo nodo** en dev y stage, dos en prod | `infra/terraform/shared`, `envs/*` |
+| Cuota del namespace `circleguard` | 3072 Mi en dev/stage; los nueve componentes piden **2368 Mi** | `infra/k8s/platform/base/resourcequotas.yaml` |
+| El mismo nodo aloja | Middleware (cuota 2560 Mi) y observabilidad (cuota 1536 Mi) | `circleguard-data`, `circleguard-observability` |
+| Enrutamiento disponible | Traefik incluido en k3s (soporta reparto por pesos) | k3s `v1.37.2+k3s1` |
+| Réplicas por componente | 1 | Manifiestos de la HU-24 |
+| Alcance del pipeline | Solo `ConfigMap`, `Deployment`, `Service`, `Ingress` y `PersistentVolumeClaim`; el deployer no tiene RBAC sobre `traefik.io` | `deployKubernetes()` y `rbac-deployer.yaml` |
+
+Criterios de decisión, tomados de la HU y de esas restricciones:
+
+| # | Criterio |
+|---|----------|
+| C1 | Reduce cuántos usuarios ven una versión defectuosa (objetivo de la HU) |
+| C2 | Cabe en los recursos disponibles |
+| C3 | Publica sin caída del servicio |
+| C4 | Permite volver atrás rápido |
+| C5 | No agrega componentes que operar |
+| C6 | Detecta errores que pasan las sondas de salud (errores de lógica) |
+
+| Patrón | C1 | C2 | C3 | C4 | C5 | C6 |
+|--------|----|----|----|----|----|----|
+| **Recreate** (lo que hacía Compose) | ❌ 100 % expuesto | ✅ | ❌ hay corte | ❌ redesplegar | ✅ | ❌ |
+| **Rolling Update** | 🟡 todos al terminar | ✅ +1 pod | ✅ | 🟡 `rollout undo` | ✅ | ❌ |
+| **Blue-Green completo** | 🟡 100 % de golpe | ❌ **4608 Mi** frente a 3072 Mi de cuota | ✅ | ✅ instantáneo | ✅ | ❌ |
+| **Blue-Green por servicio** | 🟡 100 % de golpe | ✅ +1 pod | ✅ | ✅ instantáneo | ✅ | ❌ |
+| **Canary** | ✅ **~10 %** | ✅ +1 pod | ✅ | ✅ peso a 0 % | ✅ Traefik de k3s | ✅ con tráfico real limitado |
+| **Shadow** | ✅ 0 % | ❌ duplica el tráfico | ✅ | ✅ | ❌ *service mesh* | 🟡 sin respuesta real |
+| **A/B testing** | 🟡 | ✅ | ✅ | ✅ | ❌ *mesh* o lógica de negocio | 🟡 mide negocio, no estabilidad |
+
+### 3.4 Decisión: Rolling Update + Canary
+
+**Canary es el único patrón que cumple los seis criterios.** Frente a su alternativa más cercana,
+Blue-Green por servicio, cuesta lo mismo y revierte igual de rápido, pero Blue-Green envía el
+100 % del tráfico de golpe: un error que pasa las sondas lo sufren todos los usuarios. Con Canary
+lo sufre ~1 de cada 10 peticiones mientras se detecta. Blue-Green completo queda descartado por
+recursos: duplicar los ocho backends casi dobla la cuota y no cabe en el nodo único de dev y stage.
+
+Se combinan dos patrones que cubren fallas distintas:
+
+| Patrón | Se usa en | Protege contra |
+|--------|-----------|----------------|
+| **Rolling Update + rollback automático** | Todo despliegue de los nueve componentes | Una versión que **no arranca** o no queda sana: nunca recibe tráfico y se revierte sola |
+| **Canary** | Cambios riesgosos (implementado en `dashboard`) | Una versión que **arranca pero funciona mal**: solo la ve una fracción del tráfico |
+
+### 3.5 Implementación
+
+| Pieza | Archivo | Qué hace |
+|-------|---------|----------|
+| Estrategia de Rolling Update | `infra/k8s/components/rolling-update/` | Componente de Kustomize aplicado a los 9 Deployments sin editar sus manifiestos: `maxUnavailable: 0`, `maxSurge: 1`, `minReadySeconds: 10`, `progressDeadlineSeconds: 300`, `revisionHistoryLimit: 5`, `preStop` de 10 s; el margen de cuota está en la plataforma |
+| Rollout con rollback | `scripts/k8s/rollout.sh <servicio> <imagen>` | Cambia la imagen, espera `kubectl rollout status` y, si la versión no queda lista a tiempo, ejecuta `kubectl rollout undo` y sale con código 1 |
+| Reparto por pesos | `infra/k8s/components/canary-dashboard/` | `Service dashboard-canary`, `TraefikService dashboard-weighted` y una `IngressRoute` con prioridad sobre el Ingress general para `/api/v1/analytics`. Se aplica aparte; no entra en los overlays del pipeline |
+| Ciclo del canary | `scripts/k8s/canary.sh start <imagen> [peso] \| weight \| promote \| abort \| status` | `start` copia el Deployment estable con la imagen nueva y le da tráfico solo cuando está listo; `promote` actualiza el estable con `rollout.sh`; `abort` devuelve el 100 % al estable |
+| Demo local | `infra/k8s/demo/deployment-patterns/`, `scripts/k8s/demo-*.sh` | Clúster k3d con la misma versión de k3s y Traefik; dashboard + PostgreSQL |
+
+Decisiones de detalle:
+
+- **`maxUnavailable: 0` + `maxSurge: 1`.** Con una réplica por componente, el pod nuevo arranca
+  junto al viejo y solo cuando está listo se retira el viejo. Uno a la vez, para no saturar el nodo.
+- **Readiness de la HU-28.** Un pod que no puede llegar a su base de datos nunca queda listo, así
+  que nunca reemplaza a uno sano.
+- **`preStop` de 10 s.** Kubernetes retira el pod de los endpoints y lo detiene casi a la vez;
+  Traefik podía enviarle una petición durante ese instante (se midió 1 error de cada ~330 sin él).
+  El pod sigue atendiendo 10 s mientras Traefik deja de enrutarle.
+- **El canary es una copia del Deployment estable** hecha en el momento: misma configuración,
+  sondas y recursos; solo cambian la imagen y la etiqueta `instance`. Con esa etiqueta distinta, el
+  Service `dashboard` del estable no lo selecciona por accidente.
+- **El canary entra al reparto solo cuando existe.** Traefik descarta una ruta cuyo Service no tiene
+  pods, así que en estado normal el reparto contiene solo al estable.
+- **Margen en la cuota.** Con 2368 de 3072 Mi reservados, el pod extra de promotion (512 Mi) cabe;
+  con la cuota anterior de 2560 Mi habría sido rechazado y su rollout habría quedado trabado. El
+  valor se fija en `infra/k8s/platform/base/resourcequotas.yaml`; `prod` ya usa 6 Gi / 12 Gi.
+
+### 3.6 Demostración
+
+Clúster k3d local con k3s `v1.37.2+k3s1` (la versión de los ambientes) y su Traefik. Imagen estable
+`dashboard-service:1.0.0`; la versión nueva `1.1.0` es la misma build re-etiquetada, porque lo que
+se prueba es el mecanismo de despliegue. El reparto se mide con las métricas de Prometheus de cada
+pod; la caída, con tráfico continuo (~10 peticiones/s) durante el despliegue.
+
+```bash
+scripts/k8s/demo-up.sh          # crea el clúster y despliega
+scripts/k8s/demo-scenarios.sh   # ejecuta los cinco escenarios
+scripts/k8s/demo-down.sh        # elimina el clúster
+```
+
+Resultado medido el 2026-11-20: **10 de 10 checks en dos corridas consecutivas**.
+
+| # | Escenario | Resultado |
+|---|-----------|-----------|
+| 1 | Canary al 10 % | 200 peticiones: **180 al estable, 20 al canary** |
+| 2 | Canary al 50 % | 200 peticiones: **100 / 100** |
+| 3 | Abortar | El canary desaparece; el estable responde **50 de 50** |
+| 4 | Promover bajo tráfico continuo | El estable pasa a 1.1.0 con **0 errores** (338 y 381 peticiones) |
+| 5 | Versión que nunca queda lista | `rollout.sh` la detecta a los 60 s, revierte sola y el servicio sigue en 1.1.0 con **0 errores** (298 y 299 peticiones) |
+
+### 3.7 Ventajas y limitaciones
+
+| Ventajas | Limitaciones |
+|----------|--------------|
+| Publicar no corta el servicio | Con 1 réplica, no protege contra la caída del **nodo**: eso requiere más réplicas o nodos |
+| Una versión que no arranca nunca recibe tráfico y se revierte sola | El rollback automático no detecta errores de lógica que pasan las sondas; para eso está el Canary |
+| Un error de lógica lo ve solo la fracción asignada al canary | El reparto es **por petición**, no por usuario: un mismo usuario puede alternar entre versiones. Para flujos con estado haría falta afinidad |
+| Volver atrás es mover un peso o un `rollout undo`, en segundos | Estable y canary comparten la base de datos: los cambios de esquema deben ser compatibles con ambas versiones |
+| Sin componentes nuevos: Kubernetes y el Traefik de k3s | La promoción es manual, apoyada en métricas; no hay análisis automático del canary |
+| Cabe en los nodos actuales (+1 pod) | El Canary está implementado para `dashboard`; extenderlo a otro servicio es repetir su componente |
+
+### 3.8 Operación
+
+```bash
+# Desplegar una versión de cualquier servicio (rollback automático si no queda lista)
+scripts/k8s/rollout.sh promotion 10.20.1.230:8082/circleguard/promotion-service:1.3.0
+
+# Canary de dashboard
+scripts/k8s/canary.sh start 10.20.1.230:8082/circleguard/dashboard-service:1.3.0 10
+scripts/k8s/canary.sh status       # pesos, imágenes y pods
+scripts/k8s/canary.sh weight 50    # subir la fracción si las métricas son buenas
+scripts/k8s/canary.sh promote      # o: scripts/k8s/canary.sh abort
+kubectl -n circleguard rollout history deploy/circleguard-dashboard-service
+```
+
+Los overlays `dev`, `stage` y `prod` incluyen
+`../../platform/base/observability/scrape-annotations` y `../../components/rolling-update`, así
+que un `kubectl apply -k infra/k8s/overlays/<ambiente>` despliega los nueve componentes con la
+estrategia de Rolling Update. El componente `canary-dashboard` **no** está en esos overlays: el
+pipeline solo acepta cinco tipos de recursos y el RBAC del deployer no cubre `traefik.io`, por lo
+que se aplica aparte con una identidad con permisos (o en la demo de k3d) antes de usar
+`canary.sh`. En `prod`, la cuota de plataforma ya es 6 Gi / 12 Gi.
 
 ---
 
@@ -324,6 +441,10 @@ push a dev ─► Build ─► Tests ─► Integration ─► SonarQube ─► 
 | HU-28 | Mecanismos de recuperación según las capacidades del entorno | 2.4 |
 | HU-28 | Pruebas del comportamiento ante fallos | 2.6 |
 | HU-28 | Mecanismos documentados | 2.2 a 2.7 |
+| HU-30 | Se evalúan los patrones aplicables a la arquitectura | 3.3 |
+| HU-30 | Se selecciona al menos un patrón según los requisitos | 3.4 |
+| HU-30 | Se implementa el patrón seleccionado | 3.5 |
+| HU-30 | Se demuestra su funcionamiento y se documentan ventajas y limitaciones | 3.6, 3.7 |
 
 ## 5. Referencias
 
@@ -332,4 +453,6 @@ push a dev ─► Build ─► Tests ─► Integration ─► SonarQube ─► 
 - `deploy/environments/*.env`, `deploy/secrets/secrets.env.example`, `.env.example`: configuración por ambiente.
 - `docker-compose.dev.yml`, `docker-compose.app.yml`, `deploy/docker-compose.yml`: interpolación y `restart`.
 - `scripts/resilience-test.sh`: pruebas de inyección de fallos.
+- `infra/k8s/components/rolling-update/`, `infra/k8s/components/canary-dashboard/`: patrones de despliegue en Kubernetes.
+- `scripts/k8s/rollout.sh`, `scripts/k8s/canary.sh`, `scripts/k8s/demo-*.sh`: despliegue, canary y demostración.
 - [`despliegue.md`](despliegue.md), [`pipeline.md`](pipeline.md), [`deploy/README.md`](../../deploy/README.md).

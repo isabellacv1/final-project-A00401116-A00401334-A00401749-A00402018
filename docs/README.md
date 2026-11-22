@@ -266,7 +266,7 @@ push a dev ─► Build ─► Tests ─► Integración ─► SonarQube ─►
 | [`arquitectura/contexto-tecnico.md`](arquitectura/contexto-tecnico.md) | Análisis técnico: módulos, flujos, persistencia, seguridad, riesgos y bugs corregidos. |
 | [`operaciones/pipeline.md`](operaciones/pipeline.md) | Jenkins, etapas del pipeline y ejecuciones. |
 | [`operaciones/despliegue.md`](operaciones/despliegue.md) | Dockerfiles, Nexus, entornos, promoción y verificación. |
-| [`operaciones/patrones.md`](operaciones/patrones.md) | Patrones de configuración (External Configuration), resiliencia (healthchecks, restart, retry, circuit breaker) y despliegue (artefacto inmutable, promoción), con trade-offs y evidencia. |
+| [`operaciones/patrones.md`](operaciones/patrones.md) | Patrones de configuración (External Configuration), resiliencia (healthchecks, restart, retry, circuit breaker) y despliegue (artefacto inmutable, promoción, Rolling Update y Canary en Kubernetes), con trade-offs y evidencia. |
 | [`operaciones/versionado.md`](operaciones/versionado.md) | semantic-release, tags y versiones de imagen. |
 | [`operaciones/release-process.md`](operaciones/release-process.md) | Release notes y GitHub Releases. |
 | [`operaciones/pruebas.md`](operaciones/pruebas.md) | Pruebas unitarias, de integración y E2E. |

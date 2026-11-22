@@ -4,6 +4,7 @@ resources:
   - ../../base
 components:
   - ../../platform/base/observability/scrape-annotations
+  - ../../components/rolling-update
 labels:
   - pairs:
       circleguard.io/environment: dev

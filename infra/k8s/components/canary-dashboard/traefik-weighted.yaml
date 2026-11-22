@@ -1,0 +1,32 @@
+# Weighted split between the stable and the canary dashboard.
+# Only the stable Service is listed in the steady state; scripts/k8s/canary.sh
+# adds the canary Service with its weight and removes it on promote or abort.
+apiVersion: traefik.io/v1alpha1
+kind: TraefikService
+metadata:
+  name: dashboard-weighted
+  namespace: circleguard
+spec:
+  weighted:
+    services:
+      - name: dashboard
+        port: 8084
+        weight: 100
+---
+# Takes /api/v1/analytics away from the generic Ingress (higher priority) and sends
+# it through the weighted service, so the split applies to real dashboard traffic.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dashboard-canary
+  namespace: circleguard
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: PathPrefix(`/api/v1/analytics`)
+      priority: 1000
+      services:
+        - kind: TraefikService
+          name: dashboard-weighted
