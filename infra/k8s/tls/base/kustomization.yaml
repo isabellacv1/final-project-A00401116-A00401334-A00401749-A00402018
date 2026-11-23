@@ -1,0 +1,21 @@
+# TLS for everything exposed through the Traefik Ingress (HU-35, E2.6).
+#
+# The environments have no public domain (only IPs that change when the instances restart) and
+# the security groups only allow the Jenkins host and the team IPs, so a public CA such as
+# Let's Encrypt cannot validate them. The cluster has its own CA instead, managed by
+# cert-manager:
+#
+#   selfsigned-bootstrap (ClusterIssuer) --signs--> circleguard-root-ca (CA certificate)
+#   circleguard-ca (ClusterIssuer backed by that CA) --signs--> circleguard-ingress-tls
+#   Traefik TLSStore "default" serves circleguard-ingress-tls on :443 for every Ingress
+#
+# The certificate is verifiable: export ca.crt from the circleguard-root-ca Secret and use it as
+# the trusted CA (curl --cacert, browser or OS trust store). cert-manager renews both
+# certificates before they expire. See docs/operaciones/tls.md.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - issuers.yaml
+  - ingress-certificate.yaml
+  - traefik-tlsstore.yaml
