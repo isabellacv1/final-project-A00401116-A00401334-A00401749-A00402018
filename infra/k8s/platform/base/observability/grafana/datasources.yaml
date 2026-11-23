@@ -15,3 +15,15 @@ datasources:
     editable: false
     jsonData:
       maxLines: 1000
+      derivedFields:
+        - name: TraceID
+          matcherType: label
+          matcherRegex: trace_id
+          datasourceUid: jaeger
+          url: "$${__value.raw}"
+  - name: Jaeger
+    uid: jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger.circleguard-observability.svc:16686/jaeger
+    editable: false

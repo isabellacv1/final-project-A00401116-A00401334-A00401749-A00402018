@@ -4,6 +4,7 @@ resources:
   - ../../base
 components:
   - ../../platform/base/observability/scrape-annotations
+  - ../../platform/base/observability/tracing
   - ../../components/rolling-update
   - ../../components/hpa
 labels:

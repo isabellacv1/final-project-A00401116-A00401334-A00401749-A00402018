@@ -95,6 +95,9 @@ subprojects {
         // Health probes (container HEALTHCHECK, Kubernetes) and Prometheus metrics.
         "implementation"("org.springframework.boot:spring-boot-starter-actuator")
         "runtimeOnly"("io.micrometer:micrometer-registry-prometheus")
+        // Distributed tracing to Jaeger (HU-27): spans over HTTP and Kafka, exported with OTLP
+        "implementation"("io.micrometer:micrometer-tracing-bridge-otel")
+        "implementation"("io.opentelemetry:opentelemetry-exporter-otlp")
         "testImplementation"("org.springframework.boot:spring-boot-starter-test")
         "testRuntimeOnly"("com.h2database:h2")
     }
