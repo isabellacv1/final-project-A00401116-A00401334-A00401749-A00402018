@@ -30,6 +30,27 @@ images:
   - name: 10.20.1.230:8082/circleguard/file-service
     newTag: 1.0.0-dev.10
 patches:
+  # dev has a single small node and a tight quota (circleguard-quota). The pipeline applies the
+  # nine Deployments at once, so with the HU-30 strategy (maxSurge 1) nine extra pods are requested
+  # at the same time and the quota rejects them ("exceeded quota"), which hangs the rollout.
+  # In dev each service replaces its pod instead: the old pod stops and the new one starts, with no
+  # extra quota. Stage and prod keep the zero-downtime strategy of components/rolling-update.
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      namespace: circleguard
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: any
+      spec:
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 0
+            maxUnavailable: 1
   - target:
       kind: ConfigMap
       name: circleguard-common-config
