@@ -275,7 +275,7 @@ push a dev ─► Build ─► Tests ─► Integración ─► SonarQube ─►
 | [`operaciones/pruebas.md`](operaciones/pruebas.md) | Pruebas unitarias, de integración y E2E. |
 | [`operaciones/infraestructura.md`](operaciones/infraestructura.md) | Validación de la infraestructura AWS. |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Convención de commits y flujo de Pull Requests. |
-| [`agil/iag_registro.md`](agil/iag_registro.md) | Plantilla de la bitácora de uso de IAG (Nivel 3). |
+| [`IAG_REGISTRO.md`](../IAG_REGISTRO.md) | Registro de uso de IAG (Nivel 3): declaración, prompts por integrante y reflexión crítica. |
 | [`agil/Circle Guard - Sprint 0.pdf`](<agil/Circle Guard - Sprint 0.pdf>) | Artefacto del Sprint 0. |
 
 ## Limitaciones conocidas
