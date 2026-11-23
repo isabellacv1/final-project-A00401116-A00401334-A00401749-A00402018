@@ -250,18 +250,35 @@ el build (`env.IMAGE_VERSION`), nunca una versión nueva ni `latest`. Después d
 verifica los servicios y ejecuta los smoke tests del entorno destino.
 
 - `dev → stage`: automático, solo si build, tests, integración, despliegue de `dev`,
-  smoke tests y E2E pasaron.
+  smoke tests, E2E y el preflight de `stage`/`prod` pasaron.
 - `stage → prod`: siempre detrás de una aprobación manual (`input`). Jenkins registra quién
   aprobó y cuándo.
+- El `Jenkinsfile` mantiene `promote: false`: las etapas de preflight y promoción están
+  implementadas pero no se habilitan hasta validar credenciales, contextos, DNS/CORS/SMTP,
+  imágenes, TLS y capacidad reales.
 - Cada promoción agrega una entrada a `promotion-record.txt` (build, versión, ruta, condición,
   aprobador y fecha) y archiva el archivo como artefacto del build.
 
 ## Rollback
 
-El rollback se apoyará en los **tags semánticos**: cada versión desplegada tiene una imagen
-publicada con su tag (`10.20.1.230:8082/circleguard/<servicio>:<version>` en Kubernetes), por lo
-que volver a una versión anterior consiste en desplegar de nuevo ese tag. El pipeline actual
-todavía no expone un paso automatizado de reversión.
+Antes del `apply`, la librería guarda un snapshot con la generación, imagen y revisión de los
+9 Deployments y los datos de los 8 ConfigMaps. Si falla el `apply -k`, un `rollout status` o la
+verificación posterior de una promoción, `rollbackKubernetes` compara el estado posterior,
+restaura **solo los recursos cambiados** (`kubectl rollout undo --to-revision=...` y `apply` del
+ConfigMap previo), espera el rollout y comprueba imagen/datos. Publica
+`k8s/rollback-<build>.txt` con `changed`, `verified`, `failed` y `unrecoverable`; si falta alguna
+prueba, el build falla en lugar de declarar éxito. `disableConcurrentBuilds()` evita que dos
+builds disputen el mismo snapshot.
+
+No se revierten Secrets, datos de PVC, StatefulSets, esquema de base de datos ni estado de
+Kafka; esos cambios requieren el procedimiento manual y una decisión humana. Para una reversión
+manual de una imagen publicada con tag semántico:
+
+```bash
+scripts/k8s/rollout.sh promotion 10.20.1.230:8082/circleguard/promotion-service:1.2.3
+kubectl -n circleguard rollout history deploy/circleguard-promotion-service
+```
+
 
 ## Operación manual
 
@@ -286,6 +303,20 @@ kubectl diff -k infra/k8s/overlays/dev
 
 Repite con `stage` y `prod`. El pipeline hace el mismo render de aplicación, añade la validación
 de alcance y ejecuta `apply` con el contexto y namespace configurados.
+
+## Autoescalado y preflight
+
+Los overlays incluyen `infra/k8s/components/hpa`: un `HorizontalPodAutoscaler` de
+`autoscaling/v2` para `circleguard-gateway-service` con `minReplicas: 1`, `maxReplicas: 2`, CPU
+70 % y memoria 80 %, y un parche que elimina `spec.replicas` del Deployment para que Kustomize
+no compita con el HPA. La etapa `Verify autoscaling` comprueba `metrics-server`, `kubectl top
+nodes`, permisos RBAC, el HPA, la cuota (`700m/3072Mi` requests, `6/8Gi` limits) y la capacidad
+allocatable de los nodos; sin esas pruebas el build falla.
+
+La etapa `Kubernetes preflight` se ejecuta antes de promover y valida contextos, credenciales,
+RBAC, imágenes con la versión del build, ConfigMaps sin `.invalid`/`REEMPLAZAR`/`<...>`, Ingress
+HTTPS con TLS y el mismo HPA/capacidad. Aunque las etapas existen, `promote: false` permanece en
+`Jenkinsfile`: no se promueve hasta tener evidencia real de los tres clústeres.
 
 ## Requisitos del clúster y de Jenkins
 
