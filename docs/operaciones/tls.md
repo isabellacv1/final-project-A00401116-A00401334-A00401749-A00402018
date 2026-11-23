@@ -116,7 +116,30 @@ X509v3 Subject Alternative Name:
     DNS:cg-k3s-dev-server, DNS:localhost, IP Address:10.20.2.113, IP Address:184.198.182.160, IP Address:127.0.0.1
 ```
 
-Por HTTPS responden la app y la API (`POST /api/v1/auth/login` → 405 a un GET, la ruta existe),
-Grafana (`/grafana/api/health` → 200) y Jaeger (`/jaeger/` → 200). Sin la CA, la verificación
-falla (`Verify return code: 21`), lo que confirma que el certificado no es de una CA pública;
-con `--cacert circleguard-ca.crt` (sección 4) la cadena se valida.
+Verificación con el certificado público de la CA de dev
+([`../evidencias/circleguard-ca-dev.crt`](../evidencias/circleguard-ca-dev.crt), exportado como en la
+sección 4; la clave privada solo existe en el clúster):
+
+```text
+$ openssl x509 -in circleguard-ca-dev.crt -noout -subject -dates
+subject=O=CircleGuard, CN=CircleGuard Root CA
+notBefore=Nov 23 11:08:07 2026 GMT
+notAfter=Nov 22 11:08:07 2028 GMT
+
+$ openssl s_client -connect 184.198.182.160:443 -CAfile circleguard-ca-dev.crt
+subject=CN=cg-k3s-dev-server
+issuer=O=CircleGuard, CN=CircleGuard Root CA
+Verify return code: 0 (ok)
+
+$ curl --cacert circleguard-ca-dev.crt -o /dev/null -w '%{http_code} ssl_verify_result=%{ssl_verify_result}' https://184.198.182.160<ruta>
+/                      200 ssl_verify_result=0     (app web)
+/api/v1/auth/login     405 ssl_verify_result=0     (API; la ruta existe, GET no permitido)
+/grafana/api/health    200 ssl_verify_result=0
+/jaeger/               200 ssl_verify_result=0
+
+$ curl https://184.198.182.160/           # sin la CA
+curl: (60) SSL certificate problem: unable to get local issuer certificate
+```
+
+La conexión está **cifrada y verificada** contra la CA de CircleGuard, sin `-k`; sin la CA el
+cliente la rechaza, lo que confirma que no es un certificado de una CA pública.
