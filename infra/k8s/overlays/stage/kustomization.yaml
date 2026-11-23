@@ -52,7 +52,7 @@ patches:
         name: circleguard-auth-config
         namespace: circleguard
       data:
-        CORS_ALLOWED_ORIGINS: http://reemplazar-host-web-stage.invalid:8081
+        CORS_ALLOWED_ORIGINS: http://10.20.3.109,https://10.20.3.109
   - target:
       kind: ConfigMap
       name: circleguard-gateway-config
@@ -64,7 +64,7 @@ patches:
         name: circleguard-gateway-config
         namespace: circleguard
       data:
-        CORS_ALLOWED_ORIGINS: http://reemplazar-host-web-stage.invalid:8081
+        CORS_ALLOWED_ORIGINS: http://10.20.3.109,https://10.20.3.109
   - target:
       kind: ConfigMap
       name: circleguard-notification-config

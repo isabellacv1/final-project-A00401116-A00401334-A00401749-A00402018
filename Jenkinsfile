@@ -67,10 +67,24 @@ circleguardPipeline(
     // HU-14: the E2E tests gate the promotion dev -> stage, and promoting to
     // prod always waits for a manual approval (input).
     e2e: true,
-    promote: false,
-    kubeconfigCredentialId: 'dev-kubeconfig',
-    k8sContexts: [dev: 'circleguard-deployer'],
-    k8sIngressUrls: [dev: 'http://10.20.2.113/'],
+    promote: true,
+    // No kubeconfigCredentialId here: a single value would be used for every
+    // environment, so stage and prod would be deployed with the dev cluster.
+    // Without it the library uses <env>-kubeconfig and <env>-k8s-token for
+    // each one (dev-, stage- and prod-).
+    // Every cluster gets the circleguard-deployer identity from
+    // infra/k8s/platform/base/rbac-deployer.yaml, so the context name is the same.
+    k8sContexts: [
+        dev:   'circleguard-deployer',
+        stage: 'circleguard-deployer',
+        prod:  'circleguard-deployer',
+    ],
+    // Private IPs of each k3s node (same ones as in infra/k8s/tls/overlays/<env>).
+    k8sIngressUrls: [
+        dev:   'http://10.20.2.113/',
+        stage: 'http://10.20.3.109/',
+        prod:  'http://10.20.4.229/',
+    ],
     // dev restarts the nine services at once; wait up to 10 min per Deployment (same as
     // progressDeadlineSeconds in infra/k8s/overlays/dev)
     k8sRolloutTimeout: 600,
