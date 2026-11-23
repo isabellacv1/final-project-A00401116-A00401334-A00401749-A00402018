@@ -14,6 +14,9 @@ prueba y cómo se construye y despliega.
 
 | Si necesitas… | Empieza por… |
 |---------------|--------------|
+| Operar el sistema: accesos, despliegues, alertas, incidentes y respaldos | [`operaciones/manual-de-operaciones.md`](operaciones/manual-de-operaciones.md) |
+| Leer el resumen del proyecto en inglés | [`executive-summary.md`](executive-summary.md) |
+| Conocer los costos de infraestructura | [`costos/costos-infraestructura.md`](costos/costos-infraestructura.md) |
 | Entender el sistema y sus decisiones | [`arquitectura/contexto-tecnico.md`](arquitectura/contexto-tecnico.md) |
 | Ver los componentes y sus dependencias | [`arquitectura/arquitectura.md`](arquitectura/arquitectura.md) |
 | Saber cómo corre Jenkins y qué hace cada build | [`operaciones/pipeline.md`](operaciones/pipeline.md) |
@@ -277,12 +280,13 @@ push a dev ─► Build ─► Tests ─► Integración ─► SonarQube ─►
 
 ## Limitaciones conocidas
 
-- No se usa Kubernetes: el despliegue es Docker Compose sobre instancias EC2.
-- El rollback se apoyará en los tags semánticos; su implementación está a cargo de otro
-  integrante del equipo.
-- La creación de las instancias EC2 no está automatizada en este repositorio:
-  `infra/bootstrap-all.sh` asume que `cg-devops`, `cg-sonarqube`, `cg-dev`, `cg-stage` y
-  `cg-prod` ya existen y tienen Docker.
+- **Resuelto (Sprint 2):** los ambientes corren en clústeres k3s creados con Terraform y el
+  pipeline despliega con Kustomize, con rollback automático. Ver
+  [`operaciones/manual-de-operaciones.md`](operaciones/manual-de-operaciones.md).
+- La promoción a `stage` y `prod` está implementada pero deshabilitada (`promote: false`)
+  hasta validar esos clústeres.
+- Las instancias de Jenkins/Nexus (`cg-devops`) y SonarQube (`cg-sonarqube`) no están en
+  Terraform: se crearon manualmente y se configuran con `infra/bootstrap-all.sh`.
 - Los servicios no exponen OpenAPI/Swagger.
 - **Resuelto (HU-34):** los secretos de desarrollo salieron de los `application.yml` y de los
   compose. La configuración se inyecta por ambiente y los secretos viven en la credencial
