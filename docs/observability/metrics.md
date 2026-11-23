@@ -204,8 +204,8 @@ Las métricas de negocio se calculan a partir de las peticiones HTTP. Una valida
 ## 7. Alertas
 
 Definidas en [`prometheus/alerts.yml`](../../infra/k8s/platform/base/observability/prometheus/alerts.yml). Se ven en
-Prometheus (**Alerts**) y en el panel *Firing alerts* del dashboard de servicios. No hay
-Alertmanager, así que no se envían notificaciones.
+Prometheus (**Alerts**) y en el panel *Firing alerts* del dashboard de servicios, y **Alertmanager las
+envía a Discord**: rutas, pruebas unitarias y prueba en vivo en [alerts-and-tracing.md](alerts-and-tracing.md).
 
 | Alerta | Condición | Severidad | Qué revisar |
 |---|---|---|---|

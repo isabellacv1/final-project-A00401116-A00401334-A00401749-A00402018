@@ -277,3 +277,25 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: circleguard-observability
+---
+# The services send their traces to Jaeger in the observability namespace (OTLP/HTTP 4318).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-traces-to-jaeger
+  namespace: circleguard
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: circleguard-observability
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: jaeger
+      ports:
+        - protocol: TCP
+          port: 4318

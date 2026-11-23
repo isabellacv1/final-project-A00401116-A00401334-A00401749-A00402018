@@ -49,7 +49,7 @@ patches:
         hard:
           requests.cpu: "600m"
           requests.memory: 2Gi
-          limits.cpu: "2"
-          limits.memory: 4Gi
+          limits.cpu: "3"
+          limits.memory: 5Gi
           requests.storage: 6Gi
-          pods: "10"
+          pods: "12"
