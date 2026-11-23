@@ -165,3 +165,22 @@ subjects:
   - kind: ServiceAccount
     name: circleguard-deployer
     namespace: circleguard
+---
+# Jenkins deploys with the jenkins-deployer ServiceAccount (token stored in the dev-kubeconfig
+# credential). It gets the same application permissions as circleguard-deployer, only in the
+# circleguard namespace, so the pipeline can apply the gateway HorizontalPodAutoscaler (HU-28).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: jenkins-deployer
+  namespace: circleguard
+  labels:
+    app.kubernetes.io/part-of: circleguard
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: circleguard-deployer
+subjects:
+  - kind: ServiceAccount
+    name: jenkins-deployer
+    namespace: circleguard
