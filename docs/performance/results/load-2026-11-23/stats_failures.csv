@@ -1,0 +1,5 @@
+Method,Name,Error,Occurrences
+GET,auth: generate QR,CatchResponseError('QR generation returned 0'),24
+POST,gateway: validate QR,CatchResponseError('validate returned 0'),40
+POST,form: submit survey,CatchResponseError('survey returned 0'),2
+GET,auth: generate QR,CatchResponseError('QR generation returned 503'),14
