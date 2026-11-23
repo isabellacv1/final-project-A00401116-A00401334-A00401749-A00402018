@@ -70,16 +70,24 @@ amtool check-config infra/k8s/platform/base/observability/alertmanager/alertmana
 | HighErrorRate | promotion responde 10 % con 500; auth 0 % | alerta solo para promotion con "10%" |
 | NodeLowMemory | el nodo baja a 5 % de memoria libre | a los 3 min nada; a los 9 min alerta con "5%" |
 
-**2. Prueba en vivo (con una falla provocada).** Deja un servicio sin pods y observa el ciclo
-completo Prometheus → Alertmanager → Discord:
+**2. Prueba en vivo (con una falla provocada).** Se simula un **despliegue defectuoso**: el pod de
+`file-service` arranca `sleep` en lugar de la aplicación, así que sigue vivo pero no responde. Así
+se observa el ciclo completo Prometheus → Alertmanager → Discord:
 
 ```bash
-kubectl -n circleguard scale deploy/circleguard-file-service --replicas=0
-# ~1-2 min: Prometheus muestra CircleGuardServiceDown en "Alerts" y llega 🔥 [FIRING] a Discord
-# ~5-6 min: también CircleGuardDeploymentUnavailable
-kubectl -n circleguard scale deploy/circleguard-file-service --replicas=1
-# al recuperarse llega ✅ [RESOLVED]
+kubectl -n circleguard patch deploy circleguard-file-service --type json \
+  -p '[{"op":"add","path":"/spec/template/spec/containers/0/command","value":["sleep","3600"]}]'
+# ~1-2 min: CircleGuardServiceDown (Prometheus no puede leer el pod)  → 🔥 [FIRING] en Discord
+# ~5-6 min: CircleGuardDeploymentUnavailable (0 de 1 réplicas listas) → 🔥 [FIRING] en Discord
+kubectl -n circleguard rollout undo deploy/circleguard-file-service
+# ~2-3 min: ✅ [RESOLVED] de las dos alertas
 ```
+
+**No sirve escalar a 0** (`kubectl scale --replicas=0`): el pod desaparece y Prometheus deja de
+tener a quién consultar (la serie `up` desaparece en lugar de valer 0), y las réplicas pedidas
+también pasan a 0, así que ninguna de las dos alertas se dispara. Se comprobó en dev el
+2026-11-23 (ver [load-and-failure-report.md](../performance/load-and-failure-report.md#prueba-de-las-alertas-con-la-falla));
+una alerta para ese caso queda como mejora.
 
 Se usa `file-service` porque ningún flujo crítico (login, QR, encuestas) depende de él. Las
 capturas de Prometheus (pestaña *Alerts*), de Alertmanager y de los mensajes de Discord son la
@@ -131,3 +139,76 @@ cada línea con traza tiene el campo `trace_id`, con un enlace **TraceID** que a
   privados.
 - Cuota de `circleguard-observability`: 6 Deployments, 8 Services, 12 pods; dev 500 m / 1536 Mi
   pedidos (usa 425 m / 1344 Mi), prod 600 m / 2 Gi (usa 500 m / 1536 Mi).
+
+## 3. Criterios de aceptación → evidencia (HU-27)
+
+### 3.1 Alertas probadas
+
+Pruebas unitarias de las reglas con `promtool` 3.16.0 y de la configuración de Alertmanager con
+`amtool` 0.28.1 (la misma versión de la imagen):
+
+```text
+$ promtool check rules alerts.yml
+Checking alerts.yml
+  SUCCESS: 9 rules found
+
+$ promtool test rules alerts-test.yml
+Processing test file: alerts-test.yml
+  SUCCESS
+
+$ amtool check-config alertmanager.yml
+Checking 'alertmanager.yml'  SUCCESS
+Found:
+ - global config
+ - route
+ - 1 inhibit rules
+ - 1 receivers
+
+$ amtool config routes test severity=critical alertname=CircleGuardServiceDown   → discord
+$ amtool config routes test severity=warning  alertname=NodeHighCpu              → discord
+```
+
+Las 4 alertas críticas (`CircleGuardServiceDown`, `CircleGuardDeploymentUnavailable`,
+`CircleGuardHighErrorRate`, `NodeLowMemory`) se disparan en el momento esperado, con sus
+etiquetas y mensajes, y no se disparan antes de tiempo ni para los servicios sanos (tabla de la
+sección 1). En dev, Alertmanager está `Running` con el webhook de Discord en el Secret
+`alertmanager-discord` y Prometheus evalúa las 9 reglas
+([metrics.md, figura 5](metrics.md#9-criterios-de-aceptación--evidencia-hu-27)).
+
+**Prueba en vivo con una falla real.** Durante las pruebas de fallos de la HU-32 (2026-11-23,
+[load-and-failure-report.md §3](../performance/load-and-failure-report.md#3-resultados-de-las-pruebas-de-fallos))
+se dejó Redis sin réplicas entre 17:11:52 y 17:14:12 UTC con carga constante. promotion-service
+empezó a responder con errores 5xx y el ciclo completo funcionó sin intervención:
+
+| Hora (UTC) | Alerta | Severidad | Mensaje en Discord |
+|---|---|---|---|
+| 17:17 | `CircleGuardHighErrorRate` | **critical** | 🔥 [FIRING] *circleguard-promotion-service answers more than 5% with server errors — 25.58%* |
+| tras recuperarse | `CircleGuardHighErrorRate` | critical | ✅ [RESOLVED] |
+| 11:52 | `CircleGuardPodRestarting` | warning | 🔥 [FIRING] y ✅ [RESOLVED]: kafka-0, neo4j-0 y promotion reiniciándose (despliegue de la mañana); Alertmanager los agrupó en un solo mensaje |
+
+Prometheus evaluó la regla, Alertmanager agrupó y enrutó la alerta y el canal
+`#ci-notificaciones` recibió el aviso y su resolución.
+
+![Alertas de Alertmanager en Discord](../evidencias/discord-alertas-alertmanager.jpeg)
+
+El procedimiento de despliegue defectuoso de la sección 1 permite repetir la prueba con
+`CircleGuardServiceDown` y `CircleGuardDeploymentUnavailable` cuando se necesite.
+
+### 3.2 Trazas de extremo a extremo
+
+Los 8 servicios envían trazas a Jaeger (`circleguard-auth-service`, `-dashboard-`, `-file-`,
+`-form-`, `-gateway-`, `-identity-`, `-notification-` y `-promotion-service`). El envío de una
+encuesta produce **una sola traza** que cruza Kafka:
+
+```text
+traceID ba6792a724abe5e1425b0286b0dd92d6   (68.72 ms, 2 servicios, 3 spans)
+form-service       http post /api/v1/surveys      40.6 ms
+form-service       survey.submitted send          52.7 ms   → Kafka
+promotion-service  survey.submitted receive        1.8 ms   ← misma traza
+```
+
+La encuesta de la prueba se envió **sin síntomas**, así que promotion no cambió el estado del
+usuario y no publicó `promotion.status.changed`; con síntomas la traza continúa hasta
+notification por el mismo mecanismo (`SPRING_KAFKA_LISTENER_OBSERVATIONENABLED`).
+
+![Traza en Jaeger](../evidencias/jaeger-trace-survey.png)

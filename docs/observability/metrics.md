@@ -230,3 +230,35 @@ envía a Discord**: rutas, pruebas unitarias y prueba en vivo en [alerts-and-tra
 
 La cuota de `circleguard-observability` se amplió a 10 pods y 2 DaemonSets para dejar espacio a
 Loki y Grafana Alloy, que recogen los logs (HU-26, ver [logs.md](logs.md)).
+
+## 9. Criterios de aceptación → evidencia (HU-27)
+
+Evidencia tomada en el clúster k3s de **dev** el 2026-11-23, con la versión `1.0.0-dev.25`
+(build #68 de `dev`) y 2 minutos de tráfico generado con Locust.
+
+| Criterio | Evidencia |
+|---|---|
+| Se recopilan métricas relevantes de la infraestructura y los servicios | Prometheus lee **11 de 11 targets** con `up = 1`: los 8 microservicios (`/actuator/prometheus`), cAdvisor, kube-state-metrics, node-exporter y el propio Prometheus (figura 1). |
+| Se dispone de dashboards para consultar el estado de la plataforma | Grafana con 4 dashboards aprovisionados desde el repositorio en la carpeta *CircleGuard*: Services, Infrastructure, Business y Logs (figuras 2 a 4 y [logs.md](logs.md#7-criterios-de-aceptación--evidencia-hu-26)). |
+| Se pueden identificar problemas de disponibilidad y rendimiento | *Services*: servicios arriba/abajo, reinicios, alertas activas, latencia p95 y JVM. *Infrastructure*: CPU, memoria y disco del nodo, pods no listos, Deployments degradados y uso de cuota. 9 reglas de alerta evaluadas por Prometheus (figura 5) y enviadas a Discord por Alertmanager ([alerts-and-tracing.md](alerts-and-tracing.md#3-criterios-de-aceptación--evidencia-hu-27)). |
+| Se documentan las métricas y su interpretación | Secciones 5 (métricas y cómo leerlas), 6 (dashboards y cómo usarlos ante un problema) y 7 (alertas y qué revisar). |
+
+**Figura 1.** Prometheus: `up` de todos los targets (Grafana → Explore).
+
+![Prometheus targets up](../evidencias/prometheus-targets-up.png)
+
+**Figura 2.** Dashboard *CircleGuard - Services*: 9 pods de servicios arriba, 0 caídos, 0 reinicios, 0 alertas, línea de tiempo de disponibilidad y tráfico.
+
+![Grafana Services](../evidencias/grafana-services.png)
+
+**Figura 3.** Dashboard *CircleGuard - Infrastructure*: 1 nodo, 24 pods en ejecución, 0 no listos, 0 Deployments degradados; CPU 56 %, memoria 81 % y disco 46 % del nodo; memoria y CPU por pod; uso de las cuotas.
+
+![Grafana Infrastructure](../evidencias/grafana-infrastructure.png)
+
+**Figura 4.** Dashboard *CircleGuard - Business*: 3 950 validaciones de QR, 1 105 encuestas y 71 logins en 24 h (incluye las pruebas de carga de la HU-32); p95 de la validación en la entrada: 41,6 ms.
+
+![Grafana Business](../evidencias/grafana-business.png)
+
+**Figura 5.** Grafana → Alerting: las 9 reglas de `prometheus/alerts.yml` cargadas en Prometheus (grupos availability, performance e infrastructure).
+
+![Reglas de alerta](../evidencias/grafana-alert-rules.png)

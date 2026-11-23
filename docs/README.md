@@ -14,6 +14,9 @@ prueba y cómo se construye y despliega.
 
 | Si necesitas… | Empieza por… |
 |---------------|--------------|
+| Operar el sistema: accesos, despliegues, alertas, incidentes y respaldos | [`operaciones/manual-de-operaciones.md`](operaciones/manual-de-operaciones.md) |
+| Leer el resumen del proyecto en inglés | [`executive-summary.md`](executive-summary.md) |
+| Conocer los costos de infraestructura | [`costos/costos-infraestructura.md`](costos/costos-infraestructura.md) |
 | Entender el sistema y sus decisiones | [`arquitectura/contexto-tecnico.md`](arquitectura/contexto-tecnico.md) |
 | Ver los componentes y sus dependencias | [`arquitectura/arquitectura.md`](arquitectura/arquitectura.md) |
 | Saber cómo corre Jenkins y qué hace cada build | [`operaciones/pipeline.md`](operaciones/pipeline.md) |
@@ -24,6 +27,12 @@ prueba y cómo se construye y despliega.
 | Validar la infraestructura AWS | [`operaciones/infraestructura.md`](operaciones/infraestructura.md) |
 | Operar Terraform: estado, planes, drift y recuperación | [`operaciones/terraform.md`](operaciones/terraform.md) |
 | Escribir commits y Pull Requests | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+| Consultar métricas, dashboards y su interpretación | [`observability/metrics.md`](observability/metrics.md) |
+| Consultar los logs centralizados | [`observability/logs.md`](observability/logs.md) |
+| Entender las alertas (Alertmanager → Discord) y las trazas (Jaeger) | [`observability/alerts-and-tracing.md`](observability/alerts-and-tracing.md) |
+| Instalar y verificar el TLS de los servicios expuestos | [`operaciones/tls.md`](operaciones/tls.md) |
+| Revisar la evaluación de carga y fallos | [`performance/load-and-failure-report.md`](performance/load-and-failure-report.md) |
+| Ver las capturas usadas como evidencia | [`evidencias/`](evidencias/) |
 | Revisar la entrega de cada sprint | [`agil/`](agil/) |
 
 ## Estado del proyecto
@@ -272,17 +281,18 @@ push a dev ─► Build ─► Tests ─► Integración ─► SonarQube ─►
 | [`operaciones/pruebas.md`](operaciones/pruebas.md) | Pruebas unitarias, de integración y E2E. |
 | [`operaciones/infraestructura.md`](operaciones/infraestructura.md) | Validación de la infraestructura AWS. |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Convención de commits y flujo de Pull Requests. |
-| [`agil/iag_registro.md`](agil/iag_registro.md) | Plantilla de la bitácora de uso de IAG (Nivel 3). |
+| [`IAG_REGISTRO.md`](../IAG_REGISTRO.md) | Registro de uso de IAG (Nivel 3): declaración, prompts por integrante y reflexión crítica. |
 | [`agil/Circle Guard - Sprint 0.pdf`](<agil/Circle Guard - Sprint 0.pdf>) | Artefacto del Sprint 0. |
 
 ## Limitaciones conocidas
 
-- No se usa Kubernetes: el despliegue es Docker Compose sobre instancias EC2.
-- El rollback se apoyará en los tags semánticos; su implementación está a cargo de otro
-  integrante del equipo.
-- La creación de las instancias EC2 no está automatizada en este repositorio:
-  `infra/bootstrap-all.sh` asume que `cg-devops`, `cg-sonarqube`, `cg-dev`, `cg-stage` y
-  `cg-prod` ya existen y tienen Docker.
+- **Resuelto (Sprint 2):** los ambientes corren en clústeres k3s creados con Terraform y el
+  pipeline despliega con Kustomize, con rollback automático. Ver
+  [`operaciones/manual-de-operaciones.md`](operaciones/manual-de-operaciones.md).
+- La promoción a `stage` y `prod` está implementada pero deshabilitada (`promote: false`)
+  hasta validar esos clústeres.
+- Las instancias de Jenkins/Nexus (`cg-devops`) y SonarQube (`cg-sonarqube`) no están en
+  Terraform: se crearon manualmente y se configuran con `infra/bootstrap-all.sh`.
 - Los servicios no exponen OpenAPI/Swagger.
 - **Resuelto (HU-34):** los secretos de desarrollo salieron de los `application.yml` y de los
   compose. La configuración se inyecta por ambiente y los secretos viven en la credencial

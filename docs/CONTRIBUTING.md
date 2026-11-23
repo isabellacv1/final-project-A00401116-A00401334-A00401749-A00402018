@@ -106,3 +106,14 @@ Because release versions are calculated from the commit history, merge Pull Requ
 **"Create a merge commit"** or **"Rebase and merge"** so the individual conventional commits
 are preserved. If **"Squash and merge"** is used, edit the squash commit message so it follows
 this convention (for example `docs: add pull request template`), not the PR title format.
+
+## Acceptance criteria → evidence (HU-01, HU-02 and HU-03)
+
+| HU | Criterion | Evidence |
+|----|-----------|----------|
+| HU-01 | `main` and `dev` cannot receive direct pushes or be deleted | Repository ruleset **`protect-main-and-dev`** (`active`, no bypass actors) on `refs/heads/main` and `refs/heads/dev` with the rules `deletion`, `non_fast_forward` and `pull_request`. A direct push to `dev` was rejected by GitHub with `GH013: Repository rule violations found`. |
+| HU-01 | Changes need review | `pull_request` rule: **1 approval**, stale approvals dismissed on new pushes, and all review threads resolved before merging. |
+| HU-01 | The CI checks must pass | `required_status_checks`: `continuous-integration/jenkins/pr-merge` (Jenkins) and `Validate commit messages` (commitlint). |
+| HU-02 | Every PR follows the same template | [`.github/pull_request_template.md`](../.github/pull_request_template.md) (user story, context, changes, how to test, checklist). GitHub pre-fills it in every PR; the 49 merged PRs of the project use it. |
+| HU-03 | Commits follow Conventional Commits | This guide, [`commitlint.config.mjs`](../commitlint.config.mjs), the local hook [`.githooks/commit-msg`](../.githooks/commit-msg) and the `Commit lint` workflow (`.github/workflows/commitlint.yml`). |
+| HU-03 | Invalid commits are rejected | The `Validate commit messages` check fails the PR and the ruleset blocks the merge; semantic-release relies on the same convention to compute the versions (25 versions published automatically). |
