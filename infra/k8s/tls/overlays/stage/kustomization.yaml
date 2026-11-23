@@ -1,0 +1,29 @@
+# TLS for the stage cluster. Apply after infra/k8s/cert-manager:
+#   kubectl apply -k infra/k8s/tls/overlays/stage
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+patches:
+  - target:
+      group: cert-manager.io
+      kind: Certificate
+      name: circleguard-ingress
+    patch: |-
+      - op: replace
+        path: /spec/commonName
+        value: cg-k3s-stage-server
+      - op: replace
+        path: /spec/dnsNames
+        value:
+          - cg-k3s-stage-server
+          - localhost
+      - op: replace
+        path: /spec/ipAddresses
+        value:
+      # Only the private IP (used by Jenkins, smoke, E2E and ZAP). Add the public IP when the
+      # instance is started and someone needs HTTPS from outside the VPC.
+          - 10.20.3.109
+          - 127.0.0.1

@@ -1,0 +1,39 @@
+# Bootstrap issuer: only used once, to sign the CircleGuard root CA itself
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned-bootstrap
+spec:
+  selfSigned: {}
+---
+# CircleGuard root CA. A ClusterIssuer reads its CA Secret from the cert-manager namespace.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: circleguard-root-ca
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: CircleGuard Root CA
+  subject:
+    organizations:
+      - CircleGuard
+  secretName: circleguard-root-ca
+  duration: 17520h      # 2 years
+  renewBefore: 720h     # 30 days
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: selfsigned-bootstrap
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+# Issuer that signs the service certificates with the CircleGuard CA
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: circleguard-ca
+spec:
+  ca:
+    secretName: circleguard-root-ca

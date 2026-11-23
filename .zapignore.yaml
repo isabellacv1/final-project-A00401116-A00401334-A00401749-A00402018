@@ -1,0 +1,33 @@
+# Excepciones justificadas del baseline de OWASP ZAP.
+#
+# El step zapBaselineScan solo lee este archivo cuando existe. Cada entrada debe
+# incluir `id` (pluginid de ZAP), `statement` (justificación con evidencia) y un
+# `expired_at` con fecha futura válida: una excepción sin fecha, con fecha
+# inválida o caducada NO se aplica (fail closed) y el hallazgo vuelve a bloquear.
+#
+# Un finding exceptuado NO se elimina: sigue presente en el HTML/JSON archivado,
+# solo deja de contar para la decisión del gate.
+#
+# Plantilla (copiar y rellenar solo con una justificación real):
+#   - id: "10015"
+#     scope: "http://10.20.2.113/.*"   # regex opcional sobre la URL del alert
+#     statement: >-
+#       Por qué se acepta este hallazgo, con evidencia y riesgo aceptado.
+#     approved_by: reviewer
+#     expired_at: 2027-05-17
+exceptions:
+  # CSP: style-src 'unsafe-inline' (ZAP 10055) on the web app.
+  - id: "10055"
+    statement: >-
+      The web app is an Expo (react-native-web) static export. react-native-web
+      injects <style> elements and inline style attributes at runtime, so the CSP
+      in mobile/docker/nginx.conf needs style-src 'unsafe-inline'; without it the
+      UI renders unstyled. Scripts stay strict: script-src 'self' plus the sha256
+      of the single inline hydrate script, no 'unsafe-inline' or 'unsafe-eval',
+      no wildcards, and object-src, base-uri, form-action and frame-ancestors are
+      defined. No `scope`: zapBaselineScan compares it with alert.url, which the ZAP
+      JSON report does not have (the URLs are in instances[].uri), so a scoped
+      exception never matches. The exception covers rule 10055 only, the scan only
+      targets dev, and it expires early so the CSP is reviewed then.
+    approved_by: "pending review in the HU-35 PR"
+    expired_at: 2027-02-28

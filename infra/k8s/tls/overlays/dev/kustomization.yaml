@@ -1,0 +1,30 @@
+# TLS for the dev cluster. Apply after infra/k8s/cert-manager:
+#   kubectl apply -k infra/k8s/tls/overlays/dev
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+patches:
+  - target:
+      group: cert-manager.io
+      kind: Certificate
+      name: circleguard-ingress
+    patch: |-
+      - op: replace
+        path: /spec/commonName
+        value: cg-k3s-dev-server
+      - op: replace
+        path: /spec/dnsNames
+        value:
+          - cg-k3s-dev-server
+          - localhost
+      - op: replace
+        path: /spec/ipAddresses
+        value:
+      # Public IP of the dev node today. EC2 assigns a new one when the instance is stopped and
+      # started: update it here and re-apply (cert-manager re-issues the certificate).
+          - 10.20.2.113
+          - 184.198.182.160
+          - 127.0.0.1

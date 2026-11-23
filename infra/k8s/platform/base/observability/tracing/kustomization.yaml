@@ -1,0 +1,42 @@
+# Turns on distributed tracing in every CircleGuard backend service (HU-27). It is a Component,
+# included by the application overlays, so the Deployments are not edited one by one and the
+# services keep tracing off when they run locally or in the tests (TRACING_ENABLED=false).
+#
+#   TRACING_ENABLED                          management.tracing.enabled in each application.yml
+#   MANAGEMENT_OTLP_TRACING_ENDPOINT         Jaeger OTLP/HTTP endpoint
+#   SPRING_KAFKA_TEMPLATE_OBSERVATIONENABLED the producer adds the trace headers to every record
+#   SPRING_KAFKA_LISTENER_OBSERVATIONENABLED the @KafkaListener continues the trace of the record
+#
+# With the two Kafka observations, a survey submitted to form, consumed by promotion and turned
+# into a status change consumed by notification is a single trace in Jaeger.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+patches:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      namespace: circleguard
+      name: circleguard-.*-service
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: TRACING_ENABLED
+          value: "true"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: MANAGEMENT_OTLP_TRACING_ENDPOINT
+          value: http://jaeger.circleguard-observability.svc:4318/v1/traces
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: SPRING_KAFKA_TEMPLATE_OBSERVATIONENABLED
+          value: "true"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: SPRING_KAFKA_LISTENER_OBSERVATIONENABLED
+          value: "true"

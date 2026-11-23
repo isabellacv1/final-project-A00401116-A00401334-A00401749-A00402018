@@ -94,7 +94,7 @@ loki.process "pods" {
 		}
 
 		stage.regex {
-			expression = "^\\S+\\s+(?P<level>TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\\s+\\d+\\s+---\\s+(?:\\[(?P<application>[^\\]]*)\\]\\s+)?\\[\\s*(?P<thread>[^\\]]*)\\]\\s+(?P<logger>\\S+)\\s+:"
+			expression = "^\\S+\\s+(?P<level>TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\\s+\\d+\\s+---\\s+(?:\\[(?P<application>[^\\]]*)\\]\\s+)?\\[\\s*(?P<thread>[^\\]]*)\\]\\s+(?:\\[\\s*(?:(?P<trace_id>[0-9a-fA-F]{32})-[0-9a-fA-F]{16})?\\s*\\]\\s+)?(?P<logger>\\S+)\\s+:"
 		}
 
 		// level is a label (few values, used in every query); logger and thread are only metadata
@@ -106,8 +106,9 @@ loki.process "pods" {
 
 		stage.structured_metadata {
 			values = {
-				logger = "",
-				thread = "",
+				logger   = "",
+				thread   = "",
+				trace_id = "",
 			}
 		}
 	}

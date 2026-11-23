@@ -4,7 +4,9 @@ metadata:
   name: circleguard
   namespace: circleguard
   annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: web
+    # web (80) for the pipeline (verify, smoke, E2E, ZAP) and websecure (443) for HTTPS with the
+    # CircleGuard CA certificate (infra/k8s/tls, docs/operaciones/tls.md)
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
 spec:
   ingressClassName: traefik
   rules:
