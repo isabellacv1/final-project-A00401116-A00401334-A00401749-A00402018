@@ -27,6 +27,12 @@ prueba y cómo se construye y despliega.
 | Validar la infraestructura AWS | [`operaciones/infraestructura.md`](operaciones/infraestructura.md) |
 | Operar Terraform: estado, planes, drift y recuperación | [`operaciones/terraform.md`](operaciones/terraform.md) |
 | Escribir commits y Pull Requests | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+| Consultar métricas, dashboards y su interpretación | [`observability/metrics.md`](observability/metrics.md) |
+| Consultar los logs centralizados | [`observability/logs.md`](observability/logs.md) |
+| Entender las alertas (Alertmanager → Discord) y las trazas (Jaeger) | [`observability/alerts-and-tracing.md`](observability/alerts-and-tracing.md) |
+| Instalar y verificar el TLS de los servicios expuestos | [`operaciones/tls.md`](operaciones/tls.md) |
+| Revisar la evaluación de carga y fallos | [`performance/load-and-failure-report.md`](performance/load-and-failure-report.md) |
+| Ver las capturas usadas como evidencia | [`evidencias/`](evidencias/) |
 | Revisar la entrega de cada sprint | [`agil/`](agil/) |
 
 ## Estado del proyecto
