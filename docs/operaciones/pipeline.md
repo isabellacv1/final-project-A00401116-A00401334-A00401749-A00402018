@@ -117,12 +117,14 @@ feature, que Jenkins empezaba a construir al cerrarse el PR. Con el filtro solo 
 | Terraform apply DEV | `terraform apply -lock=true` sobre el plan del **mismo** build, sin aprobación | 60 min (`terraformApply: true`, rama `dev`) |
 | Terraform apply PROD | `terraform apply -lock=true` solo con una aprobación válida de ese mismo build | 60 min (**deshabilitado**: `terraformApplyProd: false`) |
 | Publicar imágenes | `docker build` + `docker push` a Nexus (con escaneo Trivy de la imagen entre ambos) | 40 min (`publish: true` + `trivyImageScan: true`, ramas `dev`/`main`) |
-| Despliegue | SSH al entorno, `docker compose pull` + `up -d --wait` | 20 min (`deploy: true`, rama en `deployBranches`) |
-| Verificar despliegue | Comprobación HTTP de los nueve componentes con reintentos | 15 min (`deploy: true`) |
-| Smoke tests | Comprobaciones HTTP funcionales contra el host destino | 10 min (`deploy: true`) |
+| Despliegue | Render local de Kustomize, `kubectl apply -k` en `circleguard`, snapshot/rollback automático | 20 min (`deploy: true`, rama en `deployBranches`) |
+| Verificar despliegue | Comprobación HTTP de los seis paths del Ingress con reintentos | 15 min (`deploy: true`) |
+| Verificar autoscaling | HPA gateway `1→2`, metrics-server, RBAC, cuota y capacidad | 15 min (`deploy: true`, `verifyHpa: true`) |
+| Smoke tests | Comprobaciones HTTP funcionales contra el Ingress | 10 min (`deploy: true`) |
 | Pruebas E2E | Playwright en un contenedor contra `dev` desplegado | 20 min (`e2e: true`) |
-| Promover a stage | Despliega la **misma versión** a `stage` y la verifica | 240 min (`promote: true`) |
-| Promover a prod | Igual, pero siempre detrás de una aprobación manual (`input`) | 240 min (`promote: true`) |
+| Preflight K8s | Contextos, credenciales, RBAC, imágenes, ConfigMaps, Ingress/TLS, HPA y capacidad de `stage`/`prod` | 15 min (**inactivo**: `promote: false`) |
+| Promover a stage | Despliega la **misma versión**, verifica y revierte si falla | 240 min (**inactivo**: `promote: false`) |
+| Promover a prod | Igual, con aprobación manual (`input`) | 240 min (**inactivo**: `promote: false`) |
 
 > Las etapas de despliegue, verificación, smoke tests, E2E y promoción solo se ejecutan en la
 > rama `dev` (`deployBranches`). En `main` el pipeline construye, prueba, analiza y publica

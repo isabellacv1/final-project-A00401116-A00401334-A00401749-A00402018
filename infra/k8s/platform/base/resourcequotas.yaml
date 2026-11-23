@@ -5,9 +5,9 @@ metadata:
   namespace: circleguard
 spec:
   hard:
-    requests.cpu: "600m"
+    requests.cpu: "700m"
     requests.memory: 3072Mi
-    limits.cpu: "5"
+    limits.cpu: "6"
     limits.memory: 8Gi
     requests.storage: 8Gi
     pods: "20"

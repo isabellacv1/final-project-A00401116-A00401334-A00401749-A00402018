@@ -340,7 +340,7 @@ Se combinan dos patrones que cubren fallas distintas:
 
 | Patrón | Se usa en | Protege contra |
 |--------|-----------|----------------|
-| **Rolling Update + rollback automático** | Todo despliegue de los nueve componentes | Una versión que **no arranca** o no queda sana: nunca recibe tráfico y se revierte sola |
+| **Rolling Update + rollback automático** | Jenkins: los nueve Deployments y ocho ConfigMaps del overlay; scripts: un servicio | Una versión que **no arranca** o no queda sana: nunca recibe tráfico y se revierte sola |
 | **Canary** | Cambios riesgosos (implementado en `dashboard`) | Una versión que **arranca pero funciona mal**: solo la ve una fracción del tráfico |
 
 ### 3.5 Implementación
@@ -352,6 +352,8 @@ Se combinan dos patrones que cubren fallas distintas:
 | Reparto por pesos | `infra/k8s/components/canary-dashboard/` | `Service dashboard-canary`, `TraefikService dashboard-weighted` y una `IngressRoute` con prioridad sobre el Ingress general para `/api/v1/analytics`. Se aplica aparte; no entra en los overlays del pipeline |
 | Ciclo del canary | `scripts/k8s/canary.sh start <imagen> [peso] \| weight \| promote \| abort \| status` | `start` copia el Deployment estable con la imagen nueva y le da tráfico solo cuando está listo; `promote` actualiza el estable con `rollout.sh`; `abort` devuelve el 100 % al estable |
 | Demo local | `infra/k8s/demo/deployment-patterns/`, `scripts/k8s/demo-*.sh` | Clúster k3d con la misma versión de k3s y Traefik; dashboard + PostgreSQL |
+| Rollback del pipeline | `circleguard-jenkins-library/vars/kubernetesSnapshot.groovy` + `rollbackKubernetes.groovy` | Snapshot previo de Deployments/ConfigMaps; si `apply -k`, un rollout o la verificación fallan, restaura solo lo cambiado, verifica imagen/estado y falla el build si no puede garantizar la recuperación |
+| Autoescalado | `infra/k8s/components/hpa/` | HPA `autoscaling/v2` del gateway (`1→2`) con CPU 70 % / memoria 80 %; elimina `spec.replicas` del Deployment para que Kustomize no sobrescriba la réplica gestionada por el HPA |
 
 Decisiones de detalle:
 
@@ -399,7 +401,7 @@ Resultado medido el 2026-11-20: **10 de 10 checks en dos corridas consecutivas**
 | Ventajas | Limitaciones |
 |----------|--------------|
 | Publicar no corta el servicio | Con 1 réplica, no protege contra la caída del **nodo**: eso requiere más réplicas o nodos |
-| Una versión que no arranca nunca recibe tráfico y se revierte sola | El rollback automático no detecta errores de lógica que pasan las sondas; para eso está el Canary |
+| Una versión que no arranca nunca recibe tráfico y se revierte sola | El rollback del pipeline cubre Deployments y ConfigMaps; no revierte Secrets, PVC, esquemas de BD ni estado de Kafka, y no detecta errores de lógica que pasan las sondas; para eso está el Canary |
 | Un error de lógica lo ve solo la fracción asignada al canary | El reparto es **por petición**, no por usuario: un mismo usuario puede alternar entre versiones. Para flujos con estado haría falta afinidad |
 | Volver atrás es mover un peso o un `rollout undo`, en segundos | Estable y canary comparten la base de datos: los cambios de esquema deben ser compatibles con ambas versiones |
 | Sin componentes nuevos: Kubernetes y el Traefik de k3s | La promoción es manual, apoyada en métricas; no hay análisis automático del canary |
@@ -408,7 +410,7 @@ Resultado medido el 2026-11-20: **10 de 10 checks en dos corridas consecutivas**
 ### 3.8 Operación
 
 ```bash
-# Desplegar una versión de cualquier servicio (rollback automático si no queda lista)
+# Desplegar una versión de un servicio (rollback manual del script si no queda lista)
 scripts/k8s/rollout.sh promotion 10.20.1.230:8082/circleguard/promotion-service:1.3.0
 
 # Canary de dashboard
@@ -420,9 +422,11 @@ kubectl -n circleguard rollout history deploy/circleguard-dashboard-service
 ```
 
 Los overlays `dev`, `stage` y `prod` incluyen
-`../../platform/base/observability/scrape-annotations` y `../../components/rolling-update`, así
-que un `kubectl apply -k infra/k8s/overlays/<ambiente>` despliega los nueve componentes con la
-estrategia de Rolling Update. El componente `canary-dashboard` **no** está en esos overlays: el
+`../../platform/base/observability/scrape-annotations`, `../../components/rolling-update` y
+`../../components/hpa`, así que un `kubectl apply -k infra/k8s/overlays/<ambiente>` despliega los
+nueve componentes con Rolling Update y el HPA del gateway. El HPA requiere `metrics-server` y el
+decreto `6/8Gi` de límites de la cuota: con `maxSurge: 1` el pico del gateway eleva los límites a
+`5750m/8192Mi`. El componente `canary-dashboard` **no** está en esos overlays: el
 pipeline solo acepta cinco tipos de recursos y el RBAC del deployer no cubre `traefik.io`, por lo
 que se aplica aparte con una identidad con permisos (o en la demo de k3d) antes de usar
 `canary.sh`. En `prod`, la cuota de plataforma ya es 6 Gi / 12 Gi.

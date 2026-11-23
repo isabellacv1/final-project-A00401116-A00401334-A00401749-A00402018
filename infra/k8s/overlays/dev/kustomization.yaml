@@ -5,6 +5,7 @@ resources:
 components:
   - ../../platform/base/observability/scrape-annotations
   - ../../components/rolling-update
+  - ../../components/hpa
 labels:
   - pairs:
       circleguard.io/environment: dev
