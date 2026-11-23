@@ -29,6 +29,13 @@ circleguardPipeline(
     // Trivy Image: scans every image between `docker build` and `docker push`
     // and blocks the publication on HIGH/CRITICAL (opt-in in the library).
     trivyImageScan: true,
+    // HU-36 / E2.6: OWASP ZAP baseline scan (spider + passive rules, no active
+    // attack) of the Ingress URL that this build just deployed. High/Critical
+    // findings fail the build, Medium marks it unstable; every report is
+    // archived and published BEFORE the gate is applied. Requires deploy=true
+    // (already enabled above) and a branch in zapBranches/deployBranches (dev).
+    zapScan: true,
+    zapTargets: ['http://10.20.2.113/'],   // = k8sIngressUrls.dev
     // HU-33: the library defaults only cover the "Parte 1" images, so the full
     // list is declared here. deploy/docker-compose.yml pulls all of them.
     images: [
