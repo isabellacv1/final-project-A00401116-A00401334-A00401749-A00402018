@@ -175,8 +175,24 @@ sección 1). En dev, Alertmanager está `Running` con el webhook de Discord en e
 `alertmanager-discord` y Prometheus evalúa las 9 reglas
 ([metrics.md, figura 5](metrics.md#9-criterios-de-aceptación--evidencia-hu-27)).
 
-Pendiente: la prueba en vivo de la sección 1 (despliegue defectuoso de `file-service` y los avisos
-🔥 FIRING / ✅ RESOLVED en Discord).
+**Prueba en vivo con una falla real.** Durante las pruebas de fallos de la HU-32 (2026-11-23,
+[load-and-failure-report.md §3](../performance/load-and-failure-report.md#3-resultados-de-las-pruebas-de-fallos))
+se dejó Redis sin réplicas entre 17:11:52 y 17:14:12 UTC con carga constante. promotion-service
+empezó a responder con errores 5xx y el ciclo completo funcionó sin intervención:
+
+| Hora (UTC) | Alerta | Severidad | Mensaje en Discord |
+|---|---|---|---|
+| 17:17 | `CircleGuardHighErrorRate` | **critical** | 🔥 [FIRING] *circleguard-promotion-service answers more than 5% with server errors — 25.58%* |
+| tras recuperarse | `CircleGuardHighErrorRate` | critical | ✅ [RESOLVED] |
+| 11:52 | `CircleGuardPodRestarting` | warning | 🔥 [FIRING] y ✅ [RESOLVED]: kafka-0, neo4j-0 y promotion reiniciándose (despliegue de la mañana); Alertmanager los agrupó en un solo mensaje |
+
+Prometheus evaluó la regla, Alertmanager agrupó y enrutó la alerta y el canal
+`#ci-notificaciones` recibió el aviso y su resolución.
+
+![Alertas de Alertmanager en Discord](../evidencias/discord-alertas-alertmanager.jpeg)
+
+El procedimiento de despliegue defectuoso de la sección 1 permite repetir la prueba con
+`CircleGuardServiceDown` y `CircleGuardDeploymentUnavailable` cuando se necesite.
 
 ### 3.2 Trazas de extremo a extremo
 

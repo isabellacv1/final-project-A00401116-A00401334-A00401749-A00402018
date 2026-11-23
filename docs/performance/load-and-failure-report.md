@@ -97,6 +97,10 @@ historia de Locust ([`results/failure-2026-11-23/`](results/failure-2026-11-23/)
 (17:12:22 → 17:14:52), porque su sonda de readiness depende de Redis. Una falla de Redis afecta a
 dos servicios.
 
+**Alertas:** a las 17:17 UTC Alertmanager envió a Discord `CircleGuardHighErrorRate` (critical,
+promotion-service con 25,58 % de respuestas 5xx por la caída de Redis) y luego su resolución
+([alerts-and-tracing.md §3.1](../observability/alerts-and-tracing.md#31-alertas-probadas)).
+
 **Total de la corrida:** 11 736 peticiones, 863 fallos (7,35 %), **todos** durante la caída de
 Redis y su recuperación inmediata.
 
