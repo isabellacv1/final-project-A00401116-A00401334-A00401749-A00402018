@@ -1,0 +1,3 @@
+Method,Name,Error,Occurrences
+POST,gateway: validate QR,CatchResponseError('valid QR was not accepted'),115
+POST,gateway: validate QR,CatchResponseError('validate returned 503'),748

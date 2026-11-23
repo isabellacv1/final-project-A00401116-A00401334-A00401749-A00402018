@@ -80,21 +80,33 @@ concurrentes con los recursos actuales.
 
 ## 3. Resultados de las pruebas de fallos
 
-**No ejecutadas en esta entrega.** El script (`tests/performance-locust/run-failure-test.sh`)
-está listo; requiere ejecutar `kubectl scale` en el clúster durante la carga y el acceso al
-ambiente se perdió durante la prueba de carga. Escenarios planificados y lo que se espera según
-el diseño:
+Ejecutadas el 2026-11-23 entre 17:06 y 17:24 UTC en dev, con **carga constante de 20 usuarios**
+(Locust, 17:00–17:26 UTC, 11 736 peticiones). Cada componente se dejó sin réplicas con
+`kubectl scale --replicas=0` y luego se restauró. Las ventanas de caída se tomaron de
+`kube_deployment_status_replicas_available` en Prometheus (resolución 10 s) y se cruzaron con la
+historia de Locust ([`results/failure-2026-11-23/`](results/failure-2026-11-23/)).
 
-| Falla | Comando | Impacto esperado | Qué medir |
+| Falla | Abajo (UTC) | Impacto medido durante la caída (+60 s) | Recuperación |
 |---|---|---|---|
-| Redis abajo | `kubectl -n circleguard-data scale deploy/redis --replicas=0` | El gateway no puede leer el estado de salud: las validaciones de QR fallan | Tasa de error mientras está abajo y tiempo de recuperación |
-| promotion abajo | `kubectl -n circleguard scale deploy/circleguard-promotion-service --replicas=0` | Las encuestas se siguen aceptando (form solo publica en Kafka) | Que form siga respondiendo y que los eventos se procesen al volver |
-| identity abajo | `kubectl -n circleguard scale deploy/circleguard-identity-service --replicas=0` | Fallan los logins nuevos | Errores de login frente a validaciones de usuarios ya autenticados |
-| Caída de un nodo de prod | detener `cg-k3s-prod-agent` | Los pods se reprograman en el otro nodo | Tiempo sin servicio y errores durante la reprogramación |
+| **file-service** | 17:06:12 → 17:09:52 (220 s) | Ninguno: 0 fallos en 2 445 peticiones (ningún flujo de la carga depende de él) | — |
+| **Redis** | 17:11:52 → 17:14:12 (140 s) | **100 % de las validaciones de QR fallan** (863 de 1 342): primero 115 respuestas `valid: false` (el gateway no puede leer el estado y **niega el acceso**, comportamiento seguro) y luego **748 respuestas 503** (el gateway deja de estar listo y Traefik se queda sin backend). Generar QR y enviar encuestas siguen funcionando (0 fallos). | **10–20 s** después de que Redis vuelve: 8 fallos en la ventana de 17:14:20 y 0 desde 17:14:40 |
+| **promotion-service** | 17:16:12 → 17:19:12 (180 s) | Ninguno: las 331 encuestas se aceptan, porque form solo publica en Kafka y promotion consume los eventos al volver | — |
+| **identity-service** | 17:21:12 → 17:24:22 (190 s) | Ninguno en la carga. **Limitación:** los usuarios virtuales solo inician sesión al comienzo, así que esta prueba no ejercitó logins nuevos durante la caída | — |
 
-Las alertas de la HU-27 (`CircleGuardServiceDown`, `CircleGuardDeploymentUnavailable`) son las
-que deben dispararse en estos escenarios, así que la prueba sirve también como prueba en vivo de
-las alertas.
+**Efecto en cadena:** mientras Redis estuvo caído, **promotion-service también quedó no listo**
+(17:12:22 → 17:14:52), porque su sonda de readiness depende de Redis. Una falla de Redis afecta a
+dos servicios.
+
+**Total de la corrida:** 11 736 peticiones, 863 fallos (7,35 %), **todos** durante la caída de
+Redis y su recuperación inmediata.
+
+### Prueba de las alertas con la falla
+
+Escalar un servicio a 0 **no dispara las alertas críticas**: el pod desaparece, Prometheus deja de
+tener a quién consultar (la serie `up` desaparece en vez de valer 0) y
+`kube_deployment_spec_replicas` también pasa a 0, así que réplicas disponibles = pedidas. Por eso
+la prueba en vivo de las alertas usa un **despliegue defectuoso** (el pod vive pero no responde),
+ver [alerts-and-tracing.md](../observability/alerts-and-tracing.md#cómo-se-prueban-las-alertas).
 
 ## 4. Limitaciones y riesgos encontrados
 
@@ -106,6 +118,9 @@ las alertas.
 | 4 | **Sin autoescalado en `auth`.** El HPA solo existe para el gateway. | — | No hay forma de absorber picos sin intervención manual. |
 | 5 | **`auth` deja de estar listo bajo carga** y el Ingress devuelve 503. | 14 respuestas 503 en `generate QR` | Errores visibles para el usuario en vez de solo latencia. |
 | 6 | **Un solo nodo para app, datos y observabilidad** en dev. | Nodo al 54 % de CPU y 65 % de memoria en reposo | La carga de un servicio afecta a los demás; los resultados de dev son una cota inferior de lo que daría prod (2 nodos). |
+| 8 | **Sin Redis no se puede entrar al campus**: el gateway niega todas las validaciones (fail-closed) y luego deja de estar listo. | 100 % de fallos en validaciones durante 140 s | Una caída de Redis detiene el acceso al campus mientras dure. |
+| 9 | **promotion depende de Redis en su readiness**. | promotion no listo 17:12–17:14 sin que se le inyectara falla | Una falla de un componente de datos saca de servicio a otro servicio. |
+| 10 | **Escalar un servicio a 0 no genera alerta.** | `up` desaparece y `spec_replicas = 0` | Un servicio apagado por error no se notifica. |
 | 7 | Cambios del security group durante una prueba la invalidan. | Fase 3 del perfil load | Resultados no reproducibles si el acceso no se fija en Terraform. |
 
 ## 5. Oportunidades de mejora
@@ -118,12 +133,15 @@ las alertas.
 | 1 | **Limitar la tasa de logins** en el Ingress (middleware `rateLimit` de Traefik) para degradar de forma controlada en lugar de saturar `auth`. | Media |
 | 5 | Ajustar la readiness de `auth` para que la saturación no lo saque del balanceo (o al menos combinarla con el HPA). | Media |
 | 6 | Repetir la prueba en **prod (2 nodos)**, donde la app y los datos no compiten por la misma CPU. | Media |
+| 8 | Redis con réplica o Redis Sentinel; en el gateway, una caché local corta del estado de salud para seguir validando unos minutos si Redis cae. | Alta |
+| 9 | Quitar Redis de la readiness de promotion (que solo afecte a las operaciones que lo usan) o reintentar con circuit breaker. | Media |
+| 10 | Alerta `absent(up{service=...})` o `kube_deployment_spec_replicas == 0` para los servicios que nunca deben estar en 0. | Media |
 | 7 | Fijar en Terraform las IPs autorizadas para las pruebas de carga y ejecutar Locust desde la máquina de Jenkins (misma VPC, sin latencia de Internet). | Baja |
 
 ## 6. Pendiente
 
-- Perfil **stress** (200 usuarios) y las **pruebas de fallos** de la §3: se ejecutan con
-  `./run-load-test.sh stress` y `./run-failure-test.sh` en cuanto se recupere el acceso al ambiente.
+- Perfil **stress** (200 usuarios): `./run-load-test.sh stress`.
+- Prueba de identity con logins durante la caída y caída de un nodo de **prod** (2 nodos).
 - Repetir el perfil load después de aplicar el HPA de `auth` para medir la mejora.
 
 ## 7. Criterios de aceptación → evidencia (HU-32)
@@ -131,6 +149,6 @@ las alertas.
 | Criterio | Evidencia | Estado |
 |---|---|---|
 | Se define un escenario de evaluación | Sección 1 (ambiente, versión, infraestructura, escenarios, pesos y objetivos) y [`tests/performance-locust/`](../../tests/performance-locust/) | ✅ |
-| Se ejecutan pruebas de carga y/o resiliencia | Perfiles smoke (5 usuarios) y load (50 usuarios, 5 min) contra dev; datos crudos en [`results/`](results/) | ✅ carga · ⏳ resiliencia (sección 3) |
+| Se ejecutan pruebas de carga y/o resiliencia | Carga: smoke (5 usuarios) y load (50 usuarios, 5 min). Resiliencia: caída de file-service, Redis, promotion e identity con carga constante (sección 3). Datos crudos en [`results/`](results/) | ✅ |
 | Se registran los resultados obtenidos | Sección 2: tablas por tipo de petición, línea de tiempo en tres fases y su interpretación | ✅ |
 | Se identifican oportunidades de mejora | Secciones 4 (7 riesgos con evidencia) y 5 (7 mejoras priorizadas) | ✅ |

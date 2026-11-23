@@ -70,16 +70,24 @@ amtool check-config infra/k8s/platform/base/observability/alertmanager/alertmana
 | HighErrorRate | promotion responde 10 % con 500; auth 0 % | alerta solo para promotion con "10%" |
 | NodeLowMemory | el nodo baja a 5 % de memoria libre | a los 3 min nada; a los 9 min alerta con "5%" |
 
-**2. Prueba en vivo (con una falla provocada).** Deja un servicio sin pods y observa el ciclo
-completo Prometheus → Alertmanager → Discord:
+**2. Prueba en vivo (con una falla provocada).** Se simula un **despliegue defectuoso**: el pod de
+`file-service` arranca `sleep` en lugar de la aplicación, así que sigue vivo pero no responde. Así
+se observa el ciclo completo Prometheus → Alertmanager → Discord:
 
 ```bash
-kubectl -n circleguard scale deploy/circleguard-file-service --replicas=0
-# ~1-2 min: Prometheus muestra CircleGuardServiceDown en "Alerts" y llega 🔥 [FIRING] a Discord
-# ~5-6 min: también CircleGuardDeploymentUnavailable
-kubectl -n circleguard scale deploy/circleguard-file-service --replicas=1
-# al recuperarse llega ✅ [RESOLVED]
+kubectl -n circleguard patch deploy circleguard-file-service --type json \
+  -p '[{"op":"add","path":"/spec/template/spec/containers/0/command","value":["sleep","3600"]}]'
+# ~1-2 min: CircleGuardServiceDown (Prometheus no puede leer el pod)  → 🔥 [FIRING] en Discord
+# ~5-6 min: CircleGuardDeploymentUnavailable (0 de 1 réplicas listas) → 🔥 [FIRING] en Discord
+kubectl -n circleguard rollout undo deploy/circleguard-file-service
+# ~2-3 min: ✅ [RESOLVED] de las dos alertas
 ```
+
+**No sirve escalar a 0** (`kubectl scale --replicas=0`): el pod desaparece y Prometheus deja de
+tener a quién consultar (la serie `up` desaparece en lugar de valer 0), y las réplicas pedidas
+también pasan a 0, así que ninguna de las dos alertas se dispara. Se comprobó en dev el
+2026-11-23 (ver [load-and-failure-report.md](../performance/load-and-failure-report.md#prueba-de-las-alertas-con-la-falla));
+una alerta para ese caso queda como mejora.
 
 Se usa `file-service` porque ningún flujo crítico (login, QR, encuestas) depende de él. Las
 capturas de Prometheus (pestaña *Alerts*), de Alertmanager y de los mensajes de Discord son la
@@ -167,8 +175,8 @@ sección 1). En dev, Alertmanager está `Running` con el webhook de Discord en e
 `alertmanager-discord` y Prometheus evalúa las 9 reglas
 ([metrics.md, figura 5](metrics.md#9-criterios-de-aceptación--evidencia-hu-27)).
 
-Pendiente: la prueba en vivo de la sección 1 (escalar `file-service` a 0 y ver el aviso
-🔥 FIRING / ✅ RESOLVED en Discord) requiere ejecutar `kubectl scale` en el clúster.
+Pendiente: la prueba en vivo de la sección 1 (despliegue defectuoso de `file-service` y los avisos
+🔥 FIRING / ✅ RESOLVED en Discord).
 
 ### 3.2 Trazas de extremo a extremo
 
