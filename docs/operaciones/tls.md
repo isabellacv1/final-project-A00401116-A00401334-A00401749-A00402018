@@ -88,6 +88,9 @@ sin advertencias.
 
 ## 6. Alcance actual
 
+- El Ingress de la app declara `router.entrypoints: web,websecure`, así que la app y la API
+  responden en los dos puertos. Grafana y Jaeger no limitan los entrypoints y también responden
+  en ambos.
 - HTTP (puerto 80) **sigue disponible** a propósito: el pipeline (verificación, smoke, E2E y ZAP)
   usa `http://10.20.2.113`. El siguiente paso es pasar esas URLs a `https://` con la CA y activar
   la redirección HTTP → HTTPS en Traefik.
