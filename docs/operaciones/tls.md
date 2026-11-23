@@ -96,3 +96,27 @@ sin advertencias.
   la redirección HTTP → HTTPS en Traefik.
 - El tráfico entre pods dentro del clúster no va cifrado (no hay service mesh). mTLS entre
   servicios (Istio/Linkerd) es una bonificación opcional del proyecto.
+
+## 7. Evidencia (HU-35)
+
+Aplicado en el clúster k3s de **dev** el 2026-11-23:
+
+```text
+$ kubectl get certificate -A
+NAMESPACE      NAME                  READY   SECRET                    AGE
+cert-manager   circleguard-root-ca   True    circleguard-root-ca       30s
+kube-system    circleguard-ingress   True    circleguard-ingress-tls   30s
+
+$ openssl s_client -connect 184.198.182.160:443 | openssl x509 -noout -subject -issuer -dates -ext subjectAltName
+subject=CN=cg-k3s-dev-server
+issuer=O=CircleGuard, CN=CircleGuard Root CA
+notBefore=Nov 23 11:08:12 2026 GMT
+notAfter=Feb 21 11:08:12 2027 GMT
+X509v3 Subject Alternative Name:
+    DNS:cg-k3s-dev-server, DNS:localhost, IP Address:10.20.2.113, IP Address:184.198.182.160, IP Address:127.0.0.1
+```
+
+Por HTTPS responden la app y la API (`POST /api/v1/auth/login` → 405 a un GET, la ruta existe),
+Grafana (`/grafana/api/health` → 200) y Jaeger (`/jaeger/` → 200). Sin la CA, la verificación
+falla (`Verify return code: 21`), lo que confirma que el certificado no es de una CA pública;
+con `--cacert circleguard-ca.crt` (sección 4) la cadena se valida.

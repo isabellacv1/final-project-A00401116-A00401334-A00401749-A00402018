@@ -125,3 +125,12 @@ las alertas.
 - Perfil **stress** (200 usuarios) y las **pruebas de fallos** de la §3: se ejecutan con
   `./run-load-test.sh stress` y `./run-failure-test.sh` en cuanto se recupere el acceso al ambiente.
 - Repetir el perfil load después de aplicar el HPA de `auth` para medir la mejora.
+
+## 7. Criterios de aceptación → evidencia (HU-32)
+
+| Criterio | Evidencia | Estado |
+|---|---|---|
+| Se define un escenario de evaluación | Sección 1 (ambiente, versión, infraestructura, escenarios, pesos y objetivos) y [`tests/performance-locust/`](../../tests/performance-locust/) | ✅ |
+| Se ejecutan pruebas de carga y/o resiliencia | Perfiles smoke (5 usuarios) y load (50 usuarios, 5 min) contra dev; datos crudos en [`results/`](results/) | ✅ carga · ⏳ resiliencia (sección 3) |
+| Se registran los resultados obtenidos | Sección 2: tablas por tipo de petición, línea de tiempo en tres fases y su interpretación | ✅ |
+| Se identifican oportunidades de mejora | Secciones 4 (7 riesgos con evidencia) y 5 (7 mejoras priorizadas) | ✅ |

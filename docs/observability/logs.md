@@ -170,3 +170,16 @@ memoria pedidos, dentro de su cuota.
 | Las líneas no tienen `level` | No son de un servicio Spring Boot (bases de datos, Kafka) | Filtrar por texto: `\|~ "(?i)error"`. |
 | `too many outstanding requests` o consultas lentas | Rango de tiempo muy largo | Reducir el rango o filtrar primero por `app`. |
 | Loki en `CrashLoopBackOff` por disco | PVC lleno | Reducir `retention_period` o ampliar el PVC. |
+
+## 7. Criterios de aceptación → evidencia (HU-26)
+
+Evidencia tomada en el clúster k3s de **dev** el 2026-11-23 (dashboard *CircleGuard - Logs*, últimas 6 horas).
+
+| Criterio | Evidencia |
+|---|---|
+| Los logs de los servicios definidos se pueden consultar desde un punto central | Loki recibe logs de **21 componentes**: los 8 servicios, la web, Postgres, Redis, Kafka, Zookeeper, Neo4j, OpenLDAP y la propia observabilidad. El dashboard muestra 6 107 líneas en 6 horas, consultables desde Grafana. |
+| Se puede identificar el servicio que genera cada registro | Cada línea lleva las etiquetas `app`, `namespace`, `pod`, `container`, `node` y `level`; el panel *Log volume per service* las agrupa por servicio y el filtro *Service* las separa. |
+| Los registros permiten investigar errores y eventos relevantes | *Errors with stack trace* muestra un error real de promotion al arrancar con la traza completa en **una sola entrada**; *Errors and warnings per service* indica qué servicio falló y cuándo; cada línea con traza incluye su `trace_id` y Grafana enlaza a Jaeger. El panel *Logs* muestra el evento de negocio `Received survey submission event` de promotion. |
+| Se documenta cómo consultar los logs | Sección 4 (dashboard, consultas LogQL de ejemplo y tres casos de investigación paso a paso). |
+
+![Grafana Logs](../evidencias/grafana-logs.png)

@@ -131,3 +131,60 @@ cada línea con traza tiene el campo `trace_id`, con un enlace **TraceID** que a
   privados.
 - Cuota de `circleguard-observability`: 6 Deployments, 8 Services, 12 pods; dev 500 m / 1536 Mi
   pedidos (usa 425 m / 1344 Mi), prod 600 m / 2 Gi (usa 500 m / 1536 Mi).
+
+## 3. Criterios de aceptación → evidencia (HU-27)
+
+### 3.1 Alertas probadas
+
+Pruebas unitarias de las reglas con `promtool` 3.16.0 y de la configuración de Alertmanager con
+`amtool` 0.28.1 (la misma versión de la imagen):
+
+```text
+$ promtool check rules alerts.yml
+Checking alerts.yml
+  SUCCESS: 9 rules found
+
+$ promtool test rules alerts-test.yml
+Processing test file: alerts-test.yml
+  SUCCESS
+
+$ amtool check-config alertmanager.yml
+Checking 'alertmanager.yml'  SUCCESS
+Found:
+ - global config
+ - route
+ - 1 inhibit rules
+ - 1 receivers
+
+$ amtool config routes test severity=critical alertname=CircleGuardServiceDown   → discord
+$ amtool config routes test severity=warning  alertname=NodeHighCpu              → discord
+```
+
+Las 4 alertas críticas (`CircleGuardServiceDown`, `CircleGuardDeploymentUnavailable`,
+`CircleGuardHighErrorRate`, `NodeLowMemory`) se disparan en el momento esperado, con sus
+etiquetas y mensajes, y no se disparan antes de tiempo ni para los servicios sanos (tabla de la
+sección 1). En dev, Alertmanager está `Running` con el webhook de Discord en el Secret
+`alertmanager-discord` y Prometheus evalúa las 9 reglas
+([metrics.md, figura 5](metrics.md#9-criterios-de-aceptación--evidencia-hu-27)).
+
+Pendiente: la prueba en vivo de la sección 1 (escalar `file-service` a 0 y ver el aviso
+🔥 FIRING / ✅ RESOLVED en Discord) requiere ejecutar `kubectl scale` en el clúster.
+
+### 3.2 Trazas de extremo a extremo
+
+Los 8 servicios envían trazas a Jaeger (`circleguard-auth-service`, `-dashboard-`, `-file-`,
+`-form-`, `-gateway-`, `-identity-`, `-notification-` y `-promotion-service`). El envío de una
+encuesta produce **una sola traza** que cruza Kafka:
+
+```text
+traceID ba6792a724abe5e1425b0286b0dd92d6   (68.72 ms, 2 servicios, 3 spans)
+form-service       http post /api/v1/surveys      40.6 ms
+form-service       survey.submitted send          52.7 ms   → Kafka
+promotion-service  survey.submitted receive        1.8 ms   ← misma traza
+```
+
+La encuesta de la prueba se envió **sin síntomas**, así que promotion no cambió el estado del
+usuario y no publicó `promotion.status.changed`; con síntomas la traza continúa hasta
+notification por el mismo mecanismo (`SPRING_KAFKA_LISTENER_OBSERVATIONENABLED`).
+
+![Traza en Jaeger](../evidencias/jaeger-trace-survey.png)
