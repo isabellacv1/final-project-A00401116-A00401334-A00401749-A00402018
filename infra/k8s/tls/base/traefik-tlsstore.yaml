@@ -1,0 +1,11 @@
+# Default certificate of Traefik (bundled with k3s). Every HTTPS request on :443 that does not
+# match a more specific certificate gets circleguard-ingress-tls, so the existing Ingresses
+# (deployed by Jenkins) are served over TLS without editing them.
+apiVersion: traefik.io/v1alpha1
+kind: TLSStore
+metadata:
+  name: default
+  namespace: kube-system
+spec:
+  defaultCertificate:
+    secretName: circleguard-ingress-tls

@@ -50,19 +50,19 @@ metadata:
   namespace: circleguard-observability
 spec:
   hard:
-    requests.cpu: "400m"
+    requests.cpu: "500m"
     requests.memory: 1536Mi
-    limits.cpu: "2"
-    limits.memory: 3Gi
+    limits.cpu: "3"
+    limits.memory: 4Gi
     requests.storage: 4Gi
-    pods: "10"
-    services: "6"
+    pods: "12"
+    services: "8"
     services.nodeports: "0"
     services.loadbalancers: "0"
     persistentvolumeclaims: "5"
-    count/deployments.apps: "4"
+    count/deployments.apps: "6"
     count/statefulsets.apps: "4"
     count/daemonsets.apps: "2"
-    count/ingresses.networking.k8s.io: "2"
+    count/ingresses.networking.k8s.io: "3"
     count/configmaps: "10"
     count/secrets: "10"

@@ -51,6 +51,12 @@ server:
 
 
 management:
+  # Traces to Jaeger: off locally and in the tests, on in Kubernetes (component
+  # infra/k8s/platform/base/observability/tracing sets TRACING_ENABLED and the endpoint)
+  tracing:
+    enabled: ${TRACING_ENABLED:false}
+    sampling:
+      probability: 1.0
   endpoints:
     web:
       exposure:
