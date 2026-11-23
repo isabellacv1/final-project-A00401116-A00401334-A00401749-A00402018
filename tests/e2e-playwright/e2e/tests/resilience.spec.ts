@@ -39,16 +39,25 @@ test.describe('Suite E2E: Resiliencia', () => {
         candidate.url().endsWith('/api/v1/surveys') &&
         candidate.request().method() === 'POST',
     );
-    const dialogPromise = page.waitForEvent('dialog');
+    // The alert is dismissed as soon as it opens. Playwright's click does not return while an
+    // alert is open, so waiting for the click first and dismissing afterwards deadlocks when
+    // the alert appears before the click finishes (same-origin API behind the Ingress: there is
+    // no CORS preflight to delay the response).
+    const dialogPromise = new Promise<{ type: string; message: string }>((resolve) => {
+      page.once('dialog', async (dialog) => {
+        const opened = { type: dialog.type(), message: dialog.message() };
+        await dialog.dismiss();
+        resolve(opened);
+      });
+    });
     await surveyPage.submit();
     const [response, dialog] = await Promise.all([responsePromise, dialogPromise]);
 
     expect(response.status()).toBe(500);
-    expect(dialog.type()).toBe('alert');
-    expect(dialog.message()).toBe(
+    expect(dialog.type).toBe('alert');
+    expect(dialog.message).toBe(
       'Submission Failed: Could not reach the health gateway. Please try again.',
     );
-    await dialog.dismiss();
     await expect(surveyPage.confirmationMessage).not.toBeVisible();
     await expect(surveyPage.heading).toBeVisible();
     await expect(surveyPage.confirmButton).toBeVisible();
