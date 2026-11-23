@@ -71,5 +71,8 @@ circleguardPipeline(
     kubeconfigCredentialId: 'dev-kubeconfig',
     k8sContexts: [dev: 'circleguard-deployer'],
     k8sIngressUrls: [dev: 'http://10.20.2.113/'],
+    // dev restarts the nine services at once; wait up to 10 min per Deployment (same as
+    // progressDeadlineSeconds in infra/k8s/overlays/dev)
+    k8sRolloutTimeout: 600,
     discordCredentialsId: 'discord-webhook-url'
 )

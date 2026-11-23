@@ -51,6 +51,23 @@ patches:
           rollingUpdate:
             maxSurge: 0
             maxUnavailable: 1
+        # The nine Java services restart at the same time on a 2 vCPU node, so a service can
+        # take more than two minutes to start (auth needed ~135 s in build #60). The rollout is
+        # reported as failed after 10 minutes instead of 5.
+        progressDeadlineSeconds: 600
+  # Startup probe budget for the backend services in dev: 60 x 5 s = 5 minutes instead of
+  # 30 x 5 s. With the shorter budget the kubelet restarted auth while it was still starting,
+  # which doubled its startup time.
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      namespace: circleguard
+      name: circleguard-.*-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/startupProbe/failureThreshold
+        value: 60
   - target:
       kind: ConfigMap
       name: circleguard-common-config
