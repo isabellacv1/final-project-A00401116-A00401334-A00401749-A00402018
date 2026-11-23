@@ -295,3 +295,29 @@ curl -s -b cookies -u <user>:<token> -H "$CRUMB" -H "Content-Type: application/x
 
 La credencial `git-credential` y la librería compartida `circleguard-pipeline-library` deben
 existir en Jenkins antes de ejecutar el job. Luego haz clic en **Scan Repository Now** en el job.
+
+## Criterios de aceptación → evidencia (HU-10, HU-11, HU-12 y HU-15)
+
+Evidencia del build **#68 de `dev`** (2026-11-23, 20 min, `SUCCESS`, imágenes `1.0.0-dev.25`),
+el primero que recorre todo el pipeline sobre Kubernetes.
+
+| HU | Criterio | Evidencia |
+|---|---|---|
+| HU-10 | Jenkins disponible y conectado al repositorio | Job multibranch `circleguard` con *GitHub Branch Source*: construye `main`, `dev` y cada PR (`PR-19` … `PR-52`). Los cambios llegan por webhook y por el escaneo periódico (sección *Cómo se conecta con GitHub*). |
+| HU-10 | El pipeline se ejecuta automáticamente con cada cambio | El #68 se disparó solo: *"Push event to branch dev"* tras fusionar el PR #52 (figura 1). |
+| HU-10 | Jenkins documentado | Este documento: acceso, conexión con GitHub, etapas, ejecución, lectura de resultados y cómo recrear el job. |
+| HU-11 | Obtiene el código, compila y ejecuta las pruebas | Etapas Checkout, Build, Tests e Integration tests (Testcontainers dentro de Jenkins). **151 pruebas JUnit, 0 fallos, 0 omitidas** (figura 2). |
+| HU-11 | Reporta errores y conserva evidencia | Resultados JUnit en la pestaña *Tests*, reportes de pruebas y JaCoCo archivados en *Build Artifacts* desde `post { always }`; SonarQube con *Quality gate is 'OK'*. |
+| HU-11 | Pipeline reutilizable | El `Jenkinsfile` solo llama a `circleguardPipeline(...)` de la librería compartida `circleguard-pipeline-library` (sección *Librería compartida*). |
+| HU-12 | Las validaciones corren en cada Pull Request | Cada PR tiene su build `PR-N` en Jenkins y el workflow *Commit lint* en GitHub Actions; ambos reportan su estado al PR (sección *Estados reportados a GitHub*). |
+| HU-12 | No se puede fusionar si fallan | El ruleset `protect-main-and-dev` exige `continuous-integration/jenkins/pr-merge` y `Validate commit messages` en `main` y `dev` ([CONTRIBUTING.md](../CONTRIBUTING.md#acceptance-criteria--evidence-hu-01-hu-02-and-hu-03)). Ejemplo: PR #52 con ambos checks en `SUCCESS` antes del merge. |
+| HU-15 | Validaciones funcionales después de desplegar | Etapa *Smoke tests* contra el Ingress: **`All 8 smoke tests passed on dev.`**: página web y su configuración en tiempo de ejecución, login válido y con contraseña errada (401), validación de un token en el gateway, encuestas pendientes en form, estadísticas de promotion e identity exigiendo autenticación (401/403). Se ejecuta después de *Verify deployment* y antes de E2E (**6 passed**). |
+| HU-15 | El resultado bloquea la promoción si falla | Un smoke test fallido detiene el pipeline (diagrama: `Smoke -. fallo .-> Failure`) y no se ejecutan E2E ni promoción. |
+
+**Figura 1.** Build #68 de `dev`: `SUCCESS`, *"images 1.0.0-dev.25 -> dev · ZAP PASS"*, disparado por el push a `dev`.
+
+![Jenkins build 68](../evidencias/jenkins-dev-68-pipeline.png)
+
+**Figura 2.** Pestaña *Tests* del build #68.
+
+![Jenkins tests 68](../evidencias/jenkins-dev-68-tests.png)

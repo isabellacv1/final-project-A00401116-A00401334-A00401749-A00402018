@@ -57,3 +57,15 @@ Example:
 - Write the commit subject as a short description of the change, it is copied as is into the notes.
 - Merge PRs with **Create a merge commit** so the individual commits reach the notes. If a PR is
   squashed, the squash message must follow the convention.
+
+## Acceptance criteria → evidence (HU-19)
+
+| Criterion | Evidence |
+|-----------|----------|
+| Every version has release notes generated from the commits | **25 GitHub Releases** published by semantic-release: `v1.0.0` (main, 2026-11-09) and the `v1.0.0-dev.N` pre-releases from `dev`. Each one groups the commits by type (Features, Bug Fixes…) with links to the commits. |
+| The release is published automatically | Created by `github-actions` when `dev` or `main` receives a merge; nobody edits the notes by hand. |
+| Pre-releases are distinguished from releases | Versions from `dev` are marked **Pre-release** (`1.0.0-dev.25`), versions from `main` are normal releases (`1.0.0`). |
+
+`v1.0.0-dev.25`, generated from the two fixes merged in PR #52:
+
+![GitHub Release v1.0.0-dev.25](../evidencias/github-release-v1.0.0-dev.25.png)
