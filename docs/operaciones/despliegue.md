@@ -163,14 +163,15 @@ dirección interna:
 | `prod` | `infra/k8s/overlays/prod` | `prod` | Promoción desde `stage` con aprobación manual (`input`). |
 
 Cada overlay parchea `circleguard-common-config` con el perfil activo y los valores de CORS y SMTP
-del entorno. Antes de desplegar, hay que sustituir los marcadores `.invalid` y los secretos
-`REEMPLAZAR` por valores reales fuera de Git. El namespace es fijo: `circleguard`.
+del entorno. Configura un servidor SMTP real cuando se necesite enviar correo y crea los Secrets
+con valores reales fuera de Git. El namespace es fijo (`circleguard`).
 
 ### Credenciales y configuración de Jenkins
 
 | Credencial / parámetro | Uso |
 |------------------------|-----|
-| `dev-kubeconfig`, `stage-kubeconfig`, `prod-kubeconfig` | *Secret file* con el kubeconfig de cada clúster; se sustituye con `kubeconfigCredentialId`. |
+| `dev-kubeconfig`, `stage-kubeconfig`, `prod-kubeconfig` | *Secret file* con el endpoint, `certificate-authority-data` y contexto de cada clúster. La librería inyecta el usuario con el token en una copia temporal. |
+| `dev-k8s-token`, `stage-k8s-token`, `prod-k8s-token` | *Secret text* con el token de la ServiceAccount de despliegue del clúster correspondiente. El overlay de plataforma crea `circleguard-deployer` en `circleguard`. |
 | `k8sContext` / `k8sContexts` | Contexto activo esperado por entorno. Debe coincidir con `kubectl config current-context`. |
 | `k8sIngressUrls` | URL base por entorno para verificación, smoke tests y E2E. |
 | `k8sRegistry` | Registro interno usado por los nodos k3s (`10.20.1.230:8082` por defecto). |
@@ -250,12 +251,13 @@ el build (`env.IMAGE_VERSION`), nunca una versión nueva ni `latest`. Después d
 verifica los servicios y ejecuta los smoke tests del entorno destino.
 
 - `dev → stage`: automático, solo si build, tests, integración, despliegue de `dev`,
-  smoke tests, E2E y el preflight de `stage`/`prod` pasaron.
+  smoke tests y E2E pasaron.
 - `stage → prod`: siempre detrás de una aprobación manual (`input`). Jenkins registra quién
   aprobó y cuándo.
-- El `Jenkinsfile` mantiene `promote: false`: las etapas de preflight y promoción están
-  implementadas pero no se habilitan hasta validar credenciales, contextos, DNS/CORS/SMTP,
-  imágenes, TLS y capacidad reales.
+- El `Jenkinsfile` activa `promote: true`. Antes de fusionarlo a `dev`, prepara los clústeres
+  destino y verifica su conectividad desde Jenkins. Las credenciales se resuelven por entorno
+  con los IDs de la tabla. Un override global de `kubeconfigCredentialId` o
+  `k8sTokenCredentialId` se reutilizaría en las promociones.
 - Cada promoción agrega una entrada a `promotion-record.txt` (build, versión, ruta, condición,
   aprobador y fecha) y archiva el archivo como artefacto del build.
 
@@ -304,7 +306,7 @@ kubectl diff -k infra/k8s/overlays/dev
 Repite con `stage` y `prod`. El pipeline hace el mismo render de aplicación, añade la validación
 de alcance y ejecuta `apply` con el contexto y namespace configurados.
 
-## Autoescalado y preflight
+## Autoescalado
 
 Los overlays incluyen `infra/k8s/components/hpa`: un `HorizontalPodAutoscaler` de
 `autoscaling/v2` para `circleguard-gateway-service` con `minReplicas: 1`, `maxReplicas: 2`, CPU
@@ -313,11 +315,6 @@ no compita con el HPA. La etapa `Verify autoscaling` comprueba `metrics-server`,
 nodes`, permisos RBAC, el HPA, la cuota (`700m/3072Mi` requests, `6/8Gi` limits) y la capacidad
 allocatable de los nodos; sin esas pruebas el build falla.
 
-La etapa `Kubernetes preflight` se ejecuta antes de promover y valida contextos, credenciales,
-RBAC, imágenes con la versión del build, ConfigMaps sin `.invalid`/`REEMPLAZAR`/`<...>`, Ingress
-HTTPS con TLS y el mismo HPA/capacidad. Aunque las etapas existen, `promote: false` permanece en
-`Jenkinsfile`: no se promueve hasta tener evidencia real de los tres clústeres.
-
 ## Requisitos del clúster y de Jenkins
 
 - Los tres clústeres k3s deben existir y los namespaces de plataforma deben estar creados.
@@ -325,7 +322,11 @@ HTTPS con TLS y el mismo HPA/capacidad. Aunque las etapas existen, `promote: fal
   confiar en el registro HTTP según su configuración de containerd.
 - `nexus-pull-secret` y los Secrets de aplicación deben existir previamente en `circleguard`;
   la librería no los crea ni los imprime.
-- Las credenciales `<entorno>-kubeconfig`, los contextos y las URLs del Ingress deben estar
-  configurados en Jenkins antes de habilitar `deploy: true`.
+- Registra en Jenkins el kubeconfig y el token de cada clúster. El kubeconfig debe tener como
+  contexto activo `circleguard-deployer` y la CA de la API de Kubernetes embebida. Verifica el
+  acceso a esa API y al Ingress desde el agente de Jenkins.
+- Aplica plataforma y datos con una identidad administradora en cada clúster. Sigue el
+  [procedimiento de TLS](tls.md) para instalar cert-manager y aplicar el overlay del entorno.
+  Crea en cada destino el usuario que usa `e2e-credential` para el login de los smoke tests.
 - El Ingress de Traefik debe ser alcanzable desde el agente de Jenkins para las verificaciones
   HTTP, los smoke tests y E2E.

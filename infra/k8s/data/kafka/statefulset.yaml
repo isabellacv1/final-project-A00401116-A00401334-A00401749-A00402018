@@ -69,26 +69,20 @@ spec:
               value: "1"
             - name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
               value: "1"
-          readinessProbe:
-            exec:
-              command:
-                - bash
-                - -c
-                - kafka-broker-api-versions --bootstrap-server localhost:29092 >/dev/null 2>&1
-            initialDelaySeconds: 15
+          # Probe the pod directly because the advertised Service excludes unready pods.
+          startupProbe:
+            tcpSocket:
+              port: internal
             periodSeconds: 10
-            timeoutSeconds: 10
-            failureThreshold: 12
+            failureThreshold: 36
+          readinessProbe:
+            tcpSocket:
+              port: internal
+            periodSeconds: 10
           livenessProbe:
-            exec:
-              command:
-                - bash
-                - -c
-                - kafka-broker-api-versions --bootstrap-server localhost:29092 >/dev/null 2>&1
-            initialDelaySeconds: 45
+            tcpSocket:
+              port: internal
             periodSeconds: 20
-            timeoutSeconds: 10
-            failureThreshold: 6
           resources:
             requests:
               cpu: 100m

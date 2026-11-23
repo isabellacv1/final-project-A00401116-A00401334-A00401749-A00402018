@@ -122,9 +122,8 @@ feature, que Jenkins empezaba a construir al cerrarse el PR. Con el filtro solo 
 | Verificar autoscaling | HPA gateway `1→2`, metrics-server, RBAC, cuota y capacidad | 15 min (`deploy: true`, `verifyHpa: true`) |
 | Smoke tests | Comprobaciones HTTP funcionales contra el Ingress | 10 min (`deploy: true`) |
 | Pruebas E2E | Playwright en un contenedor contra `dev` desplegado | 20 min (`e2e: true`) |
-| Preflight K8s | Contextos, credenciales, RBAC, imágenes, ConfigMaps, Ingress/TLS, HPA y capacidad de `stage`/`prod` | 15 min (**inactivo**: `promote: false`) |
-| Promover a stage | Despliega la **misma versión**, verifica y revierte si falla | 240 min (**inactivo**: `promote: false`) |
-| Promover a prod | Igual, con aprobación manual (`input`) | 240 min (**inactivo**: `promote: false`) |
+| Promover a stage | Despliega la **misma versión**, verifica el Ingress y ejecuta smoke tests | 240 min (`promote: true`) |
+| Promover a prod | Aprobación manual (`input`), despliegue, verificación del Ingress y smoke tests | 240 min (`promote: true`) |
 
 > Las etapas de despliegue, verificación, smoke tests, E2E y promoción solo se ejecutan en la
 > rama `dev` (`deployBranches`). En `main` el pipeline construye, prueba, analiza y publica
