@@ -15,4 +15,18 @@
 #       Por qué se acepta este hallazgo, con evidencia y riesgo aceptado.
 #     approved_by: reviewer
 #     expired_at: 2027-05-17
-exceptions: []
+exceptions:
+  # CSP: style-src 'unsafe-inline' (ZAP 10055) on the web app.
+  - id: "10055"
+    scope: "http://10\\.20\\.2\\.113/.*"
+    statement: >-
+      The web app is an Expo (react-native-web) static export. react-native-web
+      injects <style> elements and inline style attributes at runtime, so the CSP
+      in mobile/docker/nginx.conf needs style-src 'unsafe-inline'; without it the
+      UI renders unstyled. Scripts stay strict: script-src 'self' plus the sha256
+      of the single inline hydrate script, no 'unsafe-inline' or 'unsafe-eval',
+      no wildcards, and object-src, base-uri, form-action and frame-ancestors are
+      defined. The exception covers the whole 10055 rule because the scan matches
+      by plugin id, so it expires early and the CSP must be reviewed then.
+    approved_by: "pending review in the HU-35 PR"
+    expired_at: 2027-02-28
