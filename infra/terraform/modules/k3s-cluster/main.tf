@@ -92,6 +92,16 @@ resource "aws_instance" "server" {
 
   # Sin user_data_replace_on_change: un cambio de plantilla no recrea el nodo
   # por defecto; la reconstrucción del bootstrap es explícita (documentado).
+  #
+  # ignore_changes = [user_data]: cloud-init solo ejecuta el user_data en el
+  # primer arranque, pero AWS solo deja modificarlo con la instancia DETENIDA.
+  # Sin esto, cualquier cambio de plantilla hace que el apply detenga, modifique
+  # y vuelva a arrancar el nodo sin ningún efecto funcional (build #4 de main:
+  # el server de PROD quedó detenido). Para aplicar una plantilla nueva se
+  # recrea el nodo a propósito (terraform apply -replace=...).
+  lifecycle {
+    ignore_changes = [user_data]
+  }
 }
 
 resource "aws_instance" "agent" {
@@ -136,7 +146,10 @@ resource "aws_instance" "agent" {
     Role        = "k3s-agent"
   })
 
+  # Mismo motivo que en el server: un cambio de plantilla no detiene el nodo.
   lifecycle {
+    ignore_changes = [user_data]
+
     precondition {
       condition     = var.token_parameter_name != null && var.agent_sg_id != null && var.agent_profile_name != null
       error_message = "el agente PROD requiere token_parameter_name (shared), agent_sg_id (security) y agent_profile_name (iam): falta alguno de estos valores en el cableado del root del ambiente."
