@@ -29,6 +29,39 @@ images:
   - name: 10.20.1.230:8082/circleguard/file-service
     newTag: 1.0.0-dev.10
 patches:
+  # stage has a single small node and the same tight quota as dev (requests.cpu 700m). The
+  # pipeline applies the nine Deployments at once, so with maxSurge 1 nine extra pods are
+  # requested together and the quota rejects them. Each service replaces its pod instead, and
+  # the rollout gets 10 minutes: in build #70 auth was Ready 9 s after the default 5 minutes.
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      namespace: circleguard
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: any
+      spec:
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 0
+            maxUnavailable: 1
+        progressDeadlineSeconds: 600
+  # Startup probe budget for the backend services: 60 x 5 s = 5 minutes instead of 30 x 5 s.
+  # In build #70 the kubelet killed auth (exit 137) while it was still starting.
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      namespace: circleguard
+      name: circleguard-.*-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/startupProbe/failureThreshold
+        value: 60
   - target:
       kind: ConfigMap
       name: circleguard-common-config
