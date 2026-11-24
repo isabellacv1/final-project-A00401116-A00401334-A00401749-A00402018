@@ -23,9 +23,18 @@ circleguardPipeline(
     // Terraform apply DEV: applies ONLY the plan this build produced, only for
     // infra/terraform/envs/dev and only on the `dev` branch. The build, commit,
     // root, SHA-256 and age of the plan are re-validated before any credential
-    // or `terraform init`/`apply`. PROD stays disabled here: terraformApplyProd
-    // and terraformApproval* are intentionally not set.
+    // or `terraform init`/`apply`.
     terraformApply: true,
+    // Terraform PROD (E2.3): only on `main` builds the library plans
+    // infra/terraform/envs/prod and, when the plan has changes, waits for a
+    // manual approval (input) before applying exactly that plan. A plan with
+    // no changes skips the approval and the apply. dev and the PRs never
+    // touch the PROD infrastructure.
+    terraformApplyProd: true,
+    terraformApproval: true,
+    terraformApprovalProd: true,
+    // Jenkins user IDs allowed to approve the PROD apply (comma separated).
+    terraformApprovalSubmitter: 'admin',
     // Trivy Image: scans every image between `docker build` and `docker push`
     // and blocks the publication on HIGH/CRITICAL (opt-in in the library).
     trivyImageScan: true,
