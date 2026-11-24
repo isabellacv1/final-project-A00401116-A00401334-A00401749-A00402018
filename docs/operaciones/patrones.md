@@ -359,6 +359,15 @@ Decisiones de detalle:
 
 - **`maxUnavailable: 0` + `maxSurge: 1`.** Con una réplica por componente, el pod nuevo arranca
   junto al viejo y solo cuando está listo se retira el viejo. Uno a la vez, para no saturar el nodo.
+- **En los ambientes, `maxSurge: 0` + `maxUnavailable: 1`.** El pipeline aplica los nueve
+  Deployments a la vez, así que con `maxSurge: 1` los nueve piden su pod extra al mismo tiempo y la
+  cuota `limits.cpu: 6` del namespace los rechaza (`exceeded quota`). En prod (build #73) los pods
+  en ejecución ya usaban 5250m con el gateway escalado a 2 por el HPA, e identity, notification y
+  promotion (1 CPU) quedaron en la versión anterior. Los overlays `dev`, `stage` y `prod`
+  reemplazan cada pod en lugar de añadir uno: no se pasa de la cuota, a cambio de que cada servicio
+  (una réplica) no responda mientras arranca su pod nuevo. El despliegue sin cortes requiere subir
+  `limits.cpu` o tener dos réplicas por servicio; la estrategia del componente `rolling-update`
+  queda como base y se demuestra en el clúster k3d (sección 3.6).
 - **Readiness de la HU-28.** Un pod que no puede llegar a su base de datos nunca queda listo, así
   que nunca reemplaza a uno sano.
 - **`preStop` de 10 s.** Kubernetes retira el pod de los endpoints y lo detiene casi a la vez;
