@@ -155,7 +155,8 @@ Checklist antes de aprobar cualquier plan:
 - [ ] **Destrucciones** (`-`): cualquier `-` es **parada obligatoria**.
 - [ ] **Impacto por tipo:** IAM (roles/políticas), Security Groups, SSM,
       EC2, volúmenes EBS y políticas DLM.
-- [ ] **`user_data` en `aws_instance`** (ver §12: puede implicar stop/start).
+- [ ] **`user_data` en `aws_instance`** (ver §12): el módulo lo ignora; si
+      aparece en un plan, es una **parada obligatoria** porque implica stop/start.
 - [ ] **Cero recursos de otros ambientes** en el plan.
 - [ ] **Aprobación explícita registrada** antes de ejecutar el `apply`.
 
@@ -417,12 +418,24 @@ AWS CLI (`chmod +x` de los binarios del instalador, commit `2043a77`):
   PROD el drift afecta al server (sí instala AWS CLI) y al agent.
 - **No están autorizados automáticamente:** cada uno se revisa y aprueba
   **por entorno**.
-- **Impacto posible:** una actualización de `user_data` **puede provocar
+- **Impacto posible:** una actualización de `user_data` **provoca
   stop/start de la EC2** (así ocurrió en DEV) incluso con
   `user_data_replace_on_change=false`; no describirla como un cambio inocuo.
-- Antes de aplicar: revisar el diff completo, evaluar ventana de
-  mantenimiento, verificar referencias a la IP pública del entorno y
-  comprobar la instancia después.
+- **Incidente en PROD (build #4 de `main`, 2026-11-24):** el plan de PROD
+  mostró los 2 cambios in-place de `user_data`, se aprobó y el apply
+  **detuvo `cg-k3s-prod-server`**; la modificación falló con `403` en
+  `ec2:ModifyInstanceAttribute` y la instancia quedó detenida.
+- **Desde entonces, `modules/k3s-cluster` ignora los cambios de
+  `user_data`** (`lifecycle { ignore_changes = [user_data] }` en el server y
+  el agent). cloud-init solo ejecuta el `user_data` en el primer arranque, así
+  que actualizarlo en un nodo existente no tiene efecto funcional; los planes
+  ya no lo proponen y el apply no detiene nodos por esto. Un nodo **nuevo** sí
+  arranca con la plantilla actual.
+- **Para aplicar una plantilla nueva a un nodo existente** hay que recrearlo a
+  propósito (`terraform apply -replace=module.k3s-cluster.aws_instance.<server|agent[0]>`),
+  con plan revisado, ventana de mantenimiento y aprobación por entorno; antes
+  de aplicar, verificar las referencias a la IP pública y comprobar la
+  instancia después.
 
 ---
 
