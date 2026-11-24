@@ -315,8 +315,10 @@ SSM; `one(module.registry.security_group_ids)` exige que `cg-devops` tenga
    directo a internet, permitido por el egress).
 5. **`get.k3s.io`** es un script servido por HTTPS sin fijar (la *versión* de
    k3s sí está fijada); posible mejora: binario con `sha256`.
-6. `user_data_replace_on_change` queda en `false`: cambios de plantilla no
-   recrean nodos (rebuild explícito si hace falta).
+6. `user_data_replace_on_change` queda en `false` y las instancias ignoran los
+   cambios de `user_data` (`lifecycle { ignore_changes = [user_data] }`): un
+   cambio de plantilla no recrea ni detiene nodos existentes; para aplicarla se
+   recrea el nodo a propósito con `-replace` (ver `docs/operaciones/terraform.md` §12).
 7. Verificaciones **post-apply pendientes**: instancia registrada en SSM
    (`ssm describe-instance-information`), AWS CLI v2 en la AMI, `k3s get nodes`,
    pull real desde containerd hacia Nexus y primer snapshot de DLM.
