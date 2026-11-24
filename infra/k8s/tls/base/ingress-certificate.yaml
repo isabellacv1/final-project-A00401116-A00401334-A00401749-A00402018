@@ -1,0 +1,29 @@
+# Certificate served by Traefik for the CircleGuard Ingress (app, API, Grafana, Jaeger).
+# It lives in kube-system because Traefik reads its default certificate from its own namespace.
+# The node IPs differ per environment: each overlay replaces spec.ipAddresses.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: circleguard-ingress
+  namespace: kube-system
+spec:
+  secretName: circleguard-ingress-tls
+  commonName: circleguard-ingress
+  dnsNames:
+    - localhost
+  ipAddresses:
+    - 127.0.0.1
+  duration: 2160h       # 90 days
+  renewBefore: 360h     # 15 days
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  usages:
+    - server auth
+    - digital signature
+    - key encipherment
+  issuerRef:
+    name: circleguard-ca
+    kind: ClusterIssuer
+    group: cert-manager.io

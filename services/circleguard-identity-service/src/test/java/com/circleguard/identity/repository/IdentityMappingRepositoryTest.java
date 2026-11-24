@@ -8,7 +8,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -24,7 +23,6 @@ class IdentityMappingRepositoryTest {
     void shouldSaveAndRetrieveWithAutomaticEncryption() {
         IdentityMapping mapping = IdentityMapping.builder()
                 .realIdentity("test-user")
-                .anonymousId(UUID.randomUUID())
                 .identityHash("hash123")
                 .salt("salt123")
                 .build();
@@ -48,7 +46,6 @@ class IdentityMappingRepositoryTest {
         
         IdentityMapping mapping = IdentityMapping.builder()
                 .realIdentity(realIdentity)
-                .anonymousId(UUID.randomUUID())
                 .identityHash(hash)
                 .salt(salt)
                 .build();

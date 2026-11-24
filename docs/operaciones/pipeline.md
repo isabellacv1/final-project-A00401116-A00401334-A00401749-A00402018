@@ -1,0 +1,322 @@
+# Pipeline de CI/CD (Jenkins)
+
+Este documento explica cómo funciona Jenkins en CircleGuard y qué ejecuta en cada build.
+El despliegue, las imágenes y la promoción se detallan en [`despliegue.md`](despliegue.md);
+el cálculo de versión y los tags, en [`versionado.md`](versionado.md).
+
+Jenkins ejecuta el pipeline de CI/CD de CircleGuard.
+
+- **Servidor:** aprovisionado con [`infra/bootstrap/jenkins`](../../infra/bootstrap/jenkins) (HU-05).
+- **Configuración global y credenciales:** [`infra/config-as-code/jenkins`](../../infra/config-as-code/jenkins).
+- **Job de CI:** job multibranch `circleguard`, definido en [`infra/jenkins/jobs/circleguard.xml`](../../infra/jenkins/jobs/circleguard.xml).
+- **Pipeline:** librería compartida [`circleguard-jenkins-library`](https://github.com/isabellacv1/circleguard-jenkins-library),
+  registrada en Jenkins como `circleguard-pipeline-library`. El [`Jenkinsfile`](../../Jenkinsfile) en la raíz
+  del repositorio solo carga la librería y pasa los parámetros (HU-11).
+
+## Librería compartida
+
+| Configuración | Valor |
+|---------------|-------|
+| Nombre en Jenkins | `circleguard-pipeline-library` |
+| Repositorio | `https://github.com/isabellacv1/circleguard-jenkins-library.git` (público, no requiere credenciales) |
+| Versión por defecto | `main` (se puede sobreescribir con `@Library('circleguard-pipeline-library@<branch>')`) |
+| Ubicación | **Manage Jenkins → System → Global Trusted Pipeline Libraries** |
+
+`Jenkinsfile`:
+
+```groovy
+@Library('circleguard-pipeline-library@main') _
+
+circleguardPipeline(
+    integrationTests: true,
+    sonar: true,
+    sonarProjectKey: 'CircleGuard',
+    publish: true,
+    images: [ /* las nueve imágenes: name, dockerfile, context */ ],
+    deploy: true,
+    environment: 'dev',
+    services: [ /* los nueve componentes a verificar: name, port, path */ ],
+    e2e: true,
+    promote: true,
+    discordCredentialsId: 'discord-webhook-url'
+)
+```
+
+`images` y `services` se declaran en el `Jenkinsfile` porque los valores por defecto de la
+librería solo incluyen los seis componentes de la Parte 1. Al agregar un servicio hay que
+añadirlo en ambas listas y en `deploy/docker-compose.yml`.
+
+Los parámetros y pasos disponibles están documentados en el README de la librería. Para
+conservar el registro cuando se reconstruye Jenkins, agrega el bloque `globalLibraries` de ese
+README a `infra/config-as-code/jenkins/jenkins.yaml`.
+
+## Acceso
+
+- **URL:** `http://<jenkins-host>:8080`. El host se comparte en el canal del equipo; no se publica
+  aquí porque el repositorio es público.
+- **Usuario:** pide una cuenta al equipo. No compartas credenciales en el repositorio, PRs ni issues.
+
+## Cómo se conecta con GitHub
+
+```
+GitHub (push / pull_request)
+   │  webhook
+   ▼
+canal smee.io ──► contenedor smee-client ──► Jenkins /github-webhook/
+                                                   │
+                                                   ▼
+                                     Job multibranch "circleguard"
+                                     (escanea ramas y PRs, ejecuta el Jenkinsfile)
+                                                   │
+                                                   ▼
+                                     Estado del build reportado a GitHub
+```
+
+| Pieza | Dónde | Notas |
+|-------|-------|-------|
+| Webhook de GitHub | **Settings → Webhooks** del repo | Apunta al canal smee.io del equipo. Eventos: push, pull_request, create, delete. |
+| smee-client | `infra/bootstrap/jenkins/docker-compose.yml` | Reenvía el webhook a Jenkins, que no tiene endpoint HTTPS público. |
+| Credencial de GitHub | Credencial de Jenkins `git-credential` | Usuario + token para leer el repositorio y reportar el estado del build a GitHub. |
+| Job multibranch | Job de Jenkins `circleguard` | Definición versionada en `infra/jenkins/jobs/circleguard.xml`. |
+
+### Configuración del job multibranch
+
+- **Origen:** GitHub, `isabellacv1/final-project-A00401116-A00401334-A00401749-A00402018`.
+- **Ramas:** solo `main` y `dev`, más los PRs (`PR-*`). El filtro del job es `main dev PR-*`;
+  las ramas de feature no se construyen por separado, se validan a través de su pull request.
+- **Pull requests:** PRs del mismo repositorio, construidos fusionados con su rama destino.
+- **Disparadores:** el webhook inicia un build en cada push a `main`/`dev` o actualización de PR.
+  Se mantiene un escaneo periódico cada 30 minutos como respaldo por si se pierde un webhook.
+- **Ramas eliminadas o filtradas:** sus jobs se conservan 30 días y después se eliminan
+  (`pruneDeadBranches=true`, `daysToKeep=30`).
+
+Antes del filtro, al fusionar un PR se lanzaban dos builds: `dev` por el push y la rama de
+feature, que Jenkins empezaba a construir al cerrarse el PR. Con el filtro solo corre `dev`.
+
+### Estados reportados a GitHub
+
+| Contexto | Cuándo |
+|----------|--------|
+| `continuous-integration/jenkins/branch` | Build de una rama. |
+| `continuous-integration/jenkins/pr-merge` | Build de un PR fusionado con su rama destino. Obligatorio para fusionar a `dev` y `main` (HU-12). |
+
+## Etapas del pipeline
+
+| Etapa | Comando | Tiempo máximo |
+|-------|---------|---------------|
+| Checkout | `checkout scm` | - |
+| Build | `./gradlew assemble` | 30 min |
+| Pruebas | `./gradlew test --continue` | 45 min |
+| Pruebas de integración | `./gradlew integrationTest --continue` | 30 min |
+| SonarQube | análisis + quality gate | con `sonar: true` |
+| Terraform validate | `terraform fmt -check` + `terraform init -backend=false` + `terraform validate` | con `terraformValidate: true` |
+| Trivy IaC | `trivy config` (HIGH,CRITICAL bloquea el build) | con `trivyScan: true` |
+| Terraform plan DEV | `terraform init -backend=true` + `terraform plan -out` sobre `infra/terraform/envs/dev` | 20 min (`terraformPlan: true`, rama `dev`) |
+| Terraform plan PROD | igual, pero sobre `infra/terraform/envs/prod` | 20 min (**deshabilitado**: `terraformApplyProd: false`) |
+| Terraform approval PROD | `input` manual con `submitter` y 30 min para responder | 30 min (**deshabilitado**: `terraformApproval: false` y `terraformApprovalProd: false`) |
+| Terraform apply DEV | `terraform apply -lock=true` sobre el plan del **mismo** build, sin aprobación | 60 min (`terraformApply: true`, rama `dev`) |
+| Terraform apply PROD | `terraform apply -lock=true` solo con una aprobación válida de ese mismo build | 60 min (**deshabilitado**: `terraformApplyProd: false`) |
+| Publicar imágenes | `docker build` + `docker push` a Nexus (con escaneo Trivy de la imagen entre ambos) | 40 min (`publish: true` + `trivyImageScan: true`, ramas `dev`/`main`) |
+| Despliegue | Render local de Kustomize, `kubectl apply -k` en `circleguard`, snapshot/rollback automático | 20 min (`deploy: true`, rama en `deployBranches`) |
+| Verificar despliegue | Comprobación HTTP de los seis paths del Ingress con reintentos | 15 min (`deploy: true`) |
+| Verificar autoscaling | HPA gateway `1→2`, metrics-server, RBAC, cuota y capacidad | 15 min (`deploy: true`, `verifyHpa: true`) |
+| Smoke tests | Comprobaciones HTTP funcionales contra el Ingress | 10 min (`deploy: true`) |
+| Pruebas E2E | Playwright en un contenedor contra `dev` desplegado | 20 min (`e2e: true`) |
+| Promover a stage | Despliega la **misma versión**, verifica el Ingress y ejecuta smoke tests | 240 min (`promote: true`) |
+| Promover a prod | Aprobación manual (`input`), despliegue, verificación del Ingress y smoke tests | 240 min (`promote: true`) |
+
+> Las etapas de despliegue, verificación, smoke tests, E2E y promoción solo se ejecutan en la
+> rama `dev` (`deployBranches`). En `main` el pipeline construye, prueba, analiza y publica
+> imágenes, pero no despliega.
+>
+> Las etapas de IaC tienen su **propio gating**: `Terraform validate`, `Trivy IaC`,
+> `Terraform plan DEV`, `Terraform apply DEV` y el escaneo de imágenes
+> (`Trivy Image`) están habilitadas en el `Jenkinsfile`; `Terraform plan PROD`,
+> `Terraform approval PROD` y `Terraform apply PROD` siguen **deshabilitados**. Las de
+> PROD correrían solo en `main` (`terraformApplyProdBranches`) y únicamente si se
+> activan `terraformApplyProd`, `terraformApproval` y `terraformApprovalProd` a la vez.
+
+### Diagrama del pipeline
+
+```mermaid
+flowchart TD
+    Change[Push o actualización de Pull Request en GitHub]
+    Webhook[Webhook GitHub → smee.io → smee-client]
+    Jenkins[Jenkins<br/>job multibranch circleguard]
+    Checkout[Checkout]
+    Build[Build<br/>./gradlew assemble]
+    Tests[Pruebas unitarias<br/>./gradlew test --continue]
+    Integration[Pruebas de integración<br/>./gradlew integrationTest --continue]
+    Sonar[Análisis SonarQube<br/>y Quality Gate]
+    TfVal[Terraform validate<br/>fmt + init + validate]
+    TrivyIaC[Trivy IaC<br/>trivy config]
+    TfPlan[Terraform plan DEV<br/>init + plan -out]
+    TfApply[Terraform apply DEV<br/>plan del mismo build]
+    Publish[Construir y publicar imágenes versionadas<br/>Nexus]
+    Branch{¿Rama dev o main?}
+    Deploy[Despliegue automático a dev]
+    Verify[Verificación de servicios desplegados]
+    Smoke[Smoke tests HTTP]
+    E2E[Pruebas E2E con Playwright]
+    Stage[Promoción de la misma versión a stage]
+    Approval{Aprobación manual para prod}
+    Prod[Promoción de la misma versión a prod]
+    Record[Guardar registro de promoción]
+    Status[Publicar estado en GitHub<br/>y reportes de pruebas]
+    Failure[Detener etapas posteriores<br/>notificar fallo en Discord]
+
+    Change --> Webhook --> Jenkins --> Checkout --> Build --> Tests --> Integration --> Sonar --> TfVal --> TrivyIaC --> TfPlan --> TfApply --> Publish --> Branch
+    Branch -->|Otras ramas o PR| Status
+    Branch -->|dev| Deploy --> Verify --> Smoke --> E2E --> Stage --> Approval
+    Branch -->|main| Status
+    Approval -->|Aprobada| Prod --> Record --> Status
+    Approval -->|Rechazada| Status
+
+    Build -. fallo .-> Failure
+    Tests -. fallo .-> Failure
+    Integration -. fallo .-> Failure
+    Sonar -. falla Quality Gate .-> Failure
+    TfVal -. fallo .-> Failure
+    TrivyIaC -. fallo .-> Failure
+    TfPlan -. fallo .-> Failure
+    TfApply -. fallo .-> Failure
+    Publish -. fallo .-> Failure
+    Deploy -. fallo .-> Failure
+    Verify -. fallo .-> Failure
+    Smoke -. fallo .-> Failure
+    E2E -. fallo .-> Failure
+    Stage -. fallo .-> Failure
+    Prod -. fallo .-> Failure
+    Failure --> Status
+```
+
+El `Jenkinsfile` habilita pruebas de integración, SonarQube, la validación de
+Terraform, el escaneo IaC, el plan y el apply de DEV, la publicación, el
+despliegue, E2E y la promoción. La publicación se limita a `dev` y `main`; solo
+`dev` se despliega automáticamente. Las etapas posteriores dependen del éxito de
+las anteriores. La promoción a producción requiere aprobación manual.
+
+> El diagrama no dibuja `Terraform approval` ni las etapas de PROD
+> (`Terraform plan PROD` y `Terraform apply PROD`), que están deshabilitados:
+> ocupan el mismo punto que `Terraform plan DEV`, antes de `Publicar imágenes`,
+> y su orden exacto está en la tabla anterior.
+
+### Promoción de versiones (HU-14)
+
+```
+push dev ─► Build ─► Pruebas ─► Integración ─► SonarQube ─► Publicar imágenes
+      └► Desplegar dev ─► Verificar dev ─► Smoke tests ─► Pruebas E2E
+                                │
+                                ▼  (solo si todas las validaciones anteriores pasaron)
+                         Promover a stage   ← automático, misma versión de imagen
+                                │
+                                ▼
+                         Promover a prod    ← aprobación manual con `input`
+                                │
+                                ▼
+                  promotion-record.txt (archivado con el build)
+```
+
+- **Condiciones:** solo se llega a una promoción cuando el build, las pruebas unitarias, las
+  pruebas de integración, el despliegue del entorno anterior, sus smoke tests y las pruebas E2E
+  están en verde; `Promover a prod` además requiere una aprobación humana que Jenkins registra
+  en el log del build.
+- **Versión identificable:** cada promoción despliega `env.IMAGE_VERSION`, la versión semántica
+  publicada por este mismo build (nunca `latest`).
+- **Evidencia:** cada promoción agrega una entrada a `promotion-record.txt` (versión, ruta,
+  aprobador, fecha y URL del build) y el archivo se archiva como artefacto del build.
+
+El despliegue usa `deployKubernetes()` con las imágenes publicadas por el mismo build (versión
+semántica, nunca `latest`) desde el registro interno de Kubernetes
+(`10.20.1.230:8082` por defecto). El paso copia el overlay de aplicación
+`infra/k8s/overlays/<entorno>`, fija las nueve imágenes, renderiza con `kubectl kustomize` y
+rechaza cualquier recurso fuera de `circleguard` o de los kinds de aplicación antes de archivar
+el manifiesto o ejecutar `apply`. No existe `--prune`. La plataforma (namespaces, RBAC, cuotas,
+NetworkPolicies y observabilidad) se aplica por separado desde
+`infra/k8s/platform/overlays/<entorno>` con una identidad administradora. Solo la rama `dev`
+despliega automáticamente; `stage` y `prod` se promueven en el flujo de promoción de versiones.
+Ver [`infra/k8s/README.md`](../../infra/k8s/README.md).
+
+Después de cada ejecución, incluso si una etapa falla, Jenkins publica los resultados JUnit y
+archiva los reportes de pruebas y de cobertura JaCoCo. Los benchmarks de rendimiento no forman
+parte del pipeline; se ejecutan con `./gradlew performanceTest`.
+
+Cuando un build falla, la librería compartida envía un mensaje a Discord con el job, el número
+de build, la rama, el commit y la URL del build. La URL del webhook se guarda en Jenkins como
+una credencial de tipo **Secret text** con id `discord-webhook-url` (configurada por
+`infra/config-as-code/jenkins/configure-jenkins.sh` o manualmente en **Manage Jenkins →
+Credentials**). Las imágenes se etiquetan con la versión semántica resuelta a partir de los
+tags de Git (ver [versionado.md](versionado.md)), nunca con `latest`.
+
+### Testcontainers dentro de Jenkins
+
+Jenkins se ejecuta en un contenedor y usa el daemon Docker del host a través de
+`/var/run/docker.sock`, por lo que los contenedores que inicia Testcontainers son hermanos de
+Jenkins, no hijos. Solo son alcanzables a través del gateway de la red `bridge` del host. El
+paso de librería `configureTestcontainers()` define `TESTCONTAINERS_HOST_OVERRIDE` con ese
+gateway antes de ejecutar las pruebas.
+
+### Recursos
+
+El pipeline y las pruebas con Testcontainers necesitan memoria y disco. Con 1 GB de RAM y 14 GB
+de disco los builds tardaban más de 40 minutos y Jenkins sacaba al nodo de línea cuando el
+espacio libre bajaba de 1 GB. Con 8 GB de RAM un build completo tarda unos 7 minutos. Si el
+nodo queda fuera de línea por falta de espacio, límpialo con `docker system prune -af` en el
+host.
+
+## Ejecutar el pipeline
+
+- **Automáticamente:** haz push a `main` o `dev`, o abre/actualiza un PR. El build comienza en
+  pocos segundos.
+- **Manualmente:** abre el job `circleguard`, selecciona la rama o el PR y haz clic en
+  **Build Now**.
+- **Reescanear ramas:** en el job `circleguard` haz clic en **Scan Repository Now** (útil
+  después de crear una rama `main`/`dev` o si el webhook no llegó).
+
+## Leer los resultados
+
+- **Stage view:** muestra qué etapa falló.
+- **Pestaña Tests:** resultados JUnit de cada servicio, con las pruebas fallidas y sus stack traces.
+- **Build Artifacts:** reportes HTML de pruebas y reportes de cobertura JaCoCo de cada servicio.
+- **GitHub:** el estado del build se muestra en el commit y en los checks del PR.
+
+## Recrear el job
+
+Si Jenkins se reconstruye, crea el job de nuevo desde la definición versionada:
+
+```bash
+JENKINS_URL=http://<jenkins-host>:8080
+CRUMB=$(curl -s -c cookies -u <user>:<token> "$JENKINS_URL/crumbIssuer/api/json" \
+  | python3 -c "import json,sys;d=json.load(sys.stdin);print(d['crumbRequestField']+':'+d['crumb'])")
+curl -s -b cookies -u <user>:<token> -H "$CRUMB" -H "Content-Type: application/xml" \
+  -X POST --data-binary @infra/jenkins/jobs/circleguard.xml "$JENKINS_URL/createItem?name=circleguard"
+```
+
+La credencial `git-credential` y la librería compartida `circleguard-pipeline-library` deben
+existir en Jenkins antes de ejecutar el job. Luego haz clic en **Scan Repository Now** en el job.
+
+## Criterios de aceptación → evidencia (HU-10, HU-11, HU-12 y HU-15)
+
+Evidencia del build **#68 de `dev`** (2026-11-23, 20 min, `SUCCESS`, imágenes `1.0.0-dev.25`),
+el primero que recorre todo el pipeline sobre Kubernetes.
+
+| HU | Criterio | Evidencia |
+|---|---|---|
+| HU-10 | Jenkins disponible y conectado al repositorio | Job multibranch `circleguard` con *GitHub Branch Source*: construye `main`, `dev` y cada PR (`PR-19` … `PR-52`). Los cambios llegan por webhook y por el escaneo periódico (sección *Cómo se conecta con GitHub*). |
+| HU-10 | El pipeline se ejecuta automáticamente con cada cambio | El #68 se disparó solo: *"Push event to branch dev"* tras fusionar el PR #52 (figura 1). |
+| HU-10 | Jenkins documentado | Este documento: acceso, conexión con GitHub, etapas, ejecución, lectura de resultados y cómo recrear el job. |
+| HU-11 | Obtiene el código, compila y ejecuta las pruebas | Etapas Checkout, Build, Tests e Integration tests (Testcontainers dentro de Jenkins). **151 pruebas JUnit, 0 fallos, 0 omitidas** (figura 2). |
+| HU-11 | Reporta errores y conserva evidencia | Resultados JUnit en la pestaña *Tests*, reportes de pruebas y JaCoCo archivados en *Build Artifacts* desde `post { always }`; SonarQube con *Quality gate is 'OK'*. |
+| HU-11 | Pipeline reutilizable | El `Jenkinsfile` solo llama a `circleguardPipeline(...)` de la librería compartida `circleguard-pipeline-library` (sección *Librería compartida*). |
+| HU-12 | Las validaciones corren en cada Pull Request | Cada PR tiene su build `PR-N` en Jenkins y el workflow *Commit lint* en GitHub Actions; ambos reportan su estado al PR (sección *Estados reportados a GitHub*). |
+| HU-12 | No se puede fusionar si fallan | El ruleset `protect-main-and-dev` exige `continuous-integration/jenkins/pr-merge` y `Validate commit messages` en `main` y `dev` ([CONTRIBUTING.md](../CONTRIBUTING.md#acceptance-criteria--evidence-hu-01-hu-02-and-hu-03)). Ejemplo: PR #52 con ambos checks en `SUCCESS` antes del merge. |
+| HU-15 | Validaciones funcionales después de desplegar | Etapa *Smoke tests* contra el Ingress: **`All 8 smoke tests passed on dev.`**: página web y su configuración en tiempo de ejecución, login válido y con contraseña errada (401), validación de un token en el gateway, encuestas pendientes en form, estadísticas de promotion e identity exigiendo autenticación (401/403). Se ejecuta después de *Verify deployment* y antes de E2E (**6 passed**). |
+| HU-15 | El resultado bloquea la promoción si falla | Un smoke test fallido detiene el pipeline (diagrama: `Smoke -. fallo .-> Failure`) y no se ejecutan E2E ni promoción. |
+
+**Figura 1.** Build #68 de `dev`: `SUCCESS`, *"images 1.0.0-dev.25 -> dev · ZAP PASS"*, disparado por el push a `dev`.
+
+![Jenkins build 68](../evidencias/jenkins-dev-68-pipeline.png)
+
+**Figura 2.** Pestaña *Tests* del build #68.
+
+![Jenkins tests 68](../evidencias/jenkins-dev-68-tests.png)

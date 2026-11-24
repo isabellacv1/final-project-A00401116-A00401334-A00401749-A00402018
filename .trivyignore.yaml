@@ -1,0 +1,39 @@
+misconfigurations:
+  - id: AWS-0132
+    paths:
+      - "backend-bootstrap/main.tf"
+    statement: >-
+      El bucket de estado Terraform utiliza SSE-S3 (AES256), cifrado en reposo
+      gestionado por AWS. La adopción de SSE-KMS con una CMK queda pendiente
+      de una evaluación arquitectónica independiente de HU2.
+    expired_at: 2027-05-17
+
+# Vulnerabilidades de imágenes aceptadas tras análisis. Cada excepción indica por qué el
+# código de CircleGuard no es alcanzable y vence para obligar a revisarla de nuevo. Las tres
+# solo tienen corrección en Spring Framework 7 (Spring Boot 4), una migración mayor; no
+# existe parche publicado para la línea 6.2 que usa Spring Boot 3.5.
+vulnerabilities:
+  - id: CVE-2026-47884
+    purls:
+      - "pkg:maven/org.springframework/spring-webmvc@6.2.19"
+    statement: >-
+      RCE/SSRF en XsltView de Spring MVC. Requiere renderizar vistas XSLT con un mapeo
+      "/**" y sin nombre de vista explícito. Ningún servicio usa XsltView ni plantillas
+      XSL: todos los controladores son @RestController que devuelven JSON.
+    expired_at: 2027-02-28
+  - id: CVE-2026-47890
+    purls:
+      - "pkg:maven/org.springframework/spring-webmvc@6.2.19"
+      - "pkg:maven/org.springframework/spring-webflux@6.2.19"
+    statement: >-
+      Corrupción del stream en Server-Sent Events con fragmentos de vista. Ningún servicio
+      expone SSE (SseEmitter, ServerSentEvent, text/event-stream) ni usa fragmentos de vista.
+    expired_at: 2027-02-28
+  - id: CVE-2026-47892
+    purls:
+      - "pkg:maven/org.springframework/spring-webflux@6.2.19"
+    statement: >-
+      Bypass de predicados de cabecera en endpoints funcionales de WebFlux. notification
+      incluye WebFlux solo para usar WebClient como cliente HTTP; ningún servicio define
+      RouterFunction ni endpoints funcionales.
+    expired_at: 2027-02-28

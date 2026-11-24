@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: openldap
+  namespace: circleguard-data
+  labels:
+    app.kubernetes.io/name: openldap
+    app.kubernetes.io/component: directory
+    app.kubernetes.io/part-of: circleguard
+    circleguard.io/managed-by: kustomize
+spec:
+  serviceName: openldap
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: openldap
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: openldap
+        app.kubernetes.io/component: directory
+        app.kubernetes.io/part-of: circleguard
+        circleguard.io/managed-by: kustomize
+    spec:
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: openldap
+          image: osixia/openldap:1.5.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: ldap
+              containerPort: 389
+              protocol: TCP
+          env:
+            - name: LDAP_ORGANISATION
+              value: "CircleGuard"
+            - name: LDAP_DOMAIN
+              value: "circleguard.edu"
+            - name: LDAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ldap-credentials
+                  key: LDAP_ADMIN_PASSWORD
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - ldapsearch -x -H ldap://localhost:389 -D "cn=admin,dc=circleguard,dc=edu" -w "$LDAP_ADMIN_PASSWORD" -b "dc=circleguard,dc=edu" -s base dn >/dev/null 2>&1
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - ldapsearch -x -H ldap://localhost:389 -D "cn=admin,dc=circleguard,dc=edu" -w "$LDAP_ADMIN_PASSWORD" -b "dc=circleguard,dc=edu" -s base dn >/dev/null 2>&1
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/ldap
+              subPath: data
+            - name: data
+              mountPath: /etc/ldap/slapd.d
+              subPath: config
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: ldap-data

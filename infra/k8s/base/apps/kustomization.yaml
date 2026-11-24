@@ -1,0 +1,31 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - web/deployment.yaml
+  - web/service.yaml
+  - common-config.yaml
+  - file-uploads-pvc.yaml
+  - auth/configmap.yaml
+  - auth/deployment.yaml
+  - auth/service.yaml
+  - identity/configmap.yaml
+  - identity/deployment.yaml
+  - identity/service.yaml
+  - promotion/configmap.yaml
+  - promotion/deployment.yaml
+  - promotion/service.yaml
+  - notification/configmap.yaml
+  - notification/deployment.yaml
+  - notification/service.yaml
+  - form/configmap.yaml
+  - form/deployment.yaml
+  - form/service.yaml
+  - gateway/configmap.yaml
+  - gateway/deployment.yaml
+  - gateway/service.yaml
+  - dashboard/configmap.yaml
+  - dashboard/deployment.yaml
+  - dashboard/service.yaml
+  - file/deployment.yaml
+  - file/service.yaml
+  - ingress.yaml

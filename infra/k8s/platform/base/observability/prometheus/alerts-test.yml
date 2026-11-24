@@ -1,0 +1,102 @@
+# Unit tests of the critical alerts (HU-27). They are not deployed: run them with
+#   promtool test rules infra/k8s/platform/base/observability/prometheus/alerts-test.yml
+# Each test feeds synthetic series to Prometheus and checks which alerts fire, when, and with
+# which labels, so the alert expressions are proven before a real incident.
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 15s
+
+tests:
+  # 1. A service stops answering: critical after 1 minute, not before
+  - interval: 15s
+    input_series:
+      - series: 'up{job="circleguard-services", service="circleguard-auth-service", pod="auth-1", namespace="circleguard"}'
+        values: '1 1 1 0 0 0 0 0 0 0'
+      - series: 'up{job="circleguard-services", service="circleguard-form-service", pod="form-1", namespace="circleguard"}'
+        values: '1x10'
+    alert_rule_test:
+      - eval_time: 45s
+        alertname: CircleGuardServiceDown
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: CircleGuardServiceDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: circleguard-services
+              service: circleguard-auth-service
+              pod: auth-1
+              namespace: circleguard
+            exp_annotations:
+              summary: "circleguard-auth-service is not answering"
+              description: "Prometheus cannot read the metrics of pod auth-1 for more than 1 minute."
+
+  # 2. A Deployment has fewer available replicas than requested for 5 minutes
+  - interval: 1m
+    input_series:
+      - series: 'kube_deployment_spec_replicas{namespace="circleguard", deployment="circleguard-gateway-service"}'
+        values: '2x10'
+      - series: 'kube_deployment_status_replicas_available{namespace="circleguard", deployment="circleguard-gateway-service"}'
+        values: '2 2 1 1 1 1 1 1 1 1'
+      - series: 'kube_deployment_spec_replicas{namespace="circleguard", deployment="circleguard-form-service"}'
+        values: '1x10'
+      - series: 'kube_deployment_status_replicas_available{namespace="circleguard", deployment="circleguard-form-service"}'
+        values: '1x10'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: CircleGuardDeploymentUnavailable
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: CircleGuardDeploymentUnavailable
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              namespace: circleguard
+              deployment: circleguard-gateway-service
+            exp_annotations:
+              summary: "circleguard-gateway-service has fewer replicas than expected"
+              description: "Only 1 replicas available for 5 minutes in circleguard."
+
+  # 3. More than 5% of the requests of a service end in 5xx for 5 minutes
+  - interval: 1m
+    input_series:
+      # 100 requests/min, 10 of them 500 -> 10 % errors
+      - series: 'http_server_requests_seconds_count{application="circleguard-promotion-service", status="200", uri="/api/v1/health"}'
+        values: '0+90x15'
+      - series: 'http_server_requests_seconds_count{application="circleguard-promotion-service", status="500", uri="/api/v1/health"}'
+        values: '0+10x15'
+      # healthy service: no 5xx
+      - series: 'http_server_requests_seconds_count{application="circleguard-auth-service", status="200", uri="/api/v1/auth/login"}'
+        values: '0+100x15'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: CircleGuardHighErrorRate
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              application: circleguard-promotion-service
+            exp_annotations:
+              summary: "circleguard-promotion-service answers more than 5% with server errors"
+              description: "10% of the requests ended in 5xx during the last 5 minutes."
+
+  # 4. A node has less than 10% of its memory available for 5 minutes
+  - interval: 1m
+    input_series:
+      - series: 'node_memory_MemTotal_bytes{node="cg-k3s-dev-server"}'
+        values: '8000000000x10'
+      - series: 'node_memory_MemAvailable_bytes{node="cg-k3s-dev-server"}'
+        values: '4000000000 4000000000 400000000x8'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: NodeLowMemory
+        exp_alerts: []
+      - eval_time: 9m
+        alertname: NodeLowMemory
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              node: cg-k3s-dev-server
+            exp_annotations:
+              summary: "Node cg-k3s-dev-server has less than 10% memory available"
+              description: "Only 5% of the memory is available."

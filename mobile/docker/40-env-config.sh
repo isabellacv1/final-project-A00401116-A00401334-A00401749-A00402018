@@ -22,6 +22,8 @@ VARS="AUTH_BASE_URL DASHBOARD_BASE_URL FILE_BASE_URL FORM_BASE_URL GATEWAY_BASE_
       # Escape backslashes and double quotes so the value is a valid JS string.
       escaped=$(printf '%s' "$value" | sed 's/\\/\\\\/g; s/"/\\"/g')
       echo "  \"$name\": \"$escaped\","
+    else
+      echo "  \"$name\": window.location.origin,"
     fi
   done
   echo "};"

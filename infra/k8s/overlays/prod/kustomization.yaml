@@ -1,0 +1,104 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+components:
+  - ../../platform/base/observability/scrape-annotations
+  - ../../platform/base/observability/tracing
+  - ../../components/rolling-update
+  - ../../components/hpa
+labels:
+  - pairs:
+      circleguard.io/environment: prod
+    includeSelectors: false
+images:
+  - name: 10.20.1.230:8082/circleguard/auth-service
+    newTag: 1.0.0
+  - name: 10.20.1.230:8082/circleguard/identity-service
+    newTag: 1.0.0
+  - name: 10.20.1.230:8082/circleguard/promotion-service
+    newTag: 1.0.0
+  - name: 10.20.1.230:8082/circleguard/notification-service
+    newTag: 1.0.0-dev.10
+  - name: 10.20.1.230:8082/circleguard/form-service
+    newTag: 1.0.0
+  - name: 10.20.1.230:8082/circleguard/gateway-service
+    newTag: 1.0.0
+  - name: 10.20.1.230:8082/circleguard/dashboard-service
+    newTag: 1.0.0-dev.10
+  - name: 10.20.1.230:8082/circleguard/file-service
+    newTag: 1.0.0-dev.10
+patches:
+  # prod keeps the zero-downtime strategy of components/rolling-update (two nodes and twice
+  # the quota of stage), but the nine Java services still start at the same time: the rollout
+  # gets 10 minutes and the startup probe 60 x 5 s, the values that stage needed (build #70).
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      namespace: circleguard
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: any
+      spec:
+        progressDeadlineSeconds: 600
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      namespace: circleguard
+      name: circleguard-.*-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/startupProbe/failureThreshold
+        value: 60
+  - target:
+      kind: ConfigMap
+      name: circleguard-common-config
+      namespace: circleguard
+    patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: circleguard-common-config
+        namespace: circleguard
+      data:
+        SPRING_PROFILES_ACTIVE: prod
+  - target:
+      kind: ConfigMap
+      name: circleguard-auth-config
+      namespace: circleguard
+    patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: circleguard-auth-config
+        namespace: circleguard
+      data:
+        CORS_ALLOWED_ORIGINS: http://10.20.4.229,https://10.20.4.229
+  - target:
+      kind: ConfigMap
+      name: circleguard-gateway-config
+      namespace: circleguard
+    patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: circleguard-gateway-config
+        namespace: circleguard
+      data:
+        CORS_ALLOWED_ORIGINS: http://10.20.4.229,https://10.20.4.229
+  - target:
+      kind: ConfigMap
+      name: circleguard-notification-config
+      namespace: circleguard
+    patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: circleguard-notification-config
+        namespace: circleguard
+      data:
+        SPRING_MAIL_HOST: reemplazar-smtp-host-prod.invalid

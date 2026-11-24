@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: circleguard-data
+resources:
+  - postgres
+  - neo4j
+  - redis
+  - zookeeper
+  - kafka
+  - ldap
+secretGenerator:
+  - name: postgres-credentials
+    envs:
+      - postgres/postgres.env
+  - name: neo4j-credentials
+    envs:
+      - neo4j/neo4j.env
+  - name: ldap-credentials
+    envs:
+      - ldap/ldap.env
+generatorOptions:
+  disableNameSuffixHash: true

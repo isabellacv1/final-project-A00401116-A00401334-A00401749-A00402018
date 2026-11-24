@@ -1,0 +1,77 @@
+# Prometheus, kube-state-metrics and Alloy discover targets through the Kubernetes API, and Prometheus
+# reads the container metrics (cAdvisor) through the API server proxy. In k3s the API server runs
+# on the nodes (port 6443) and is published as the "kubernetes" service (10.43.0.1:443), so the
+# namespace selectors of the base policies do not cover it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-kube-api-egress
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - prometheus
+          - kube-state-metrics
+          - alloy
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.43.0.1/32
+      ports:
+        - protocol: TCP
+          port: 443
+    - to:
+        - ipBlock:
+            cidr: 10.20.0.0/16
+      ports:
+        - protocol: TCP
+          port: 6443
+---
+# The services send their traces to Jaeger (OTLP/HTTP 4318). The matching egress rule is in
+# platform/base/networkpolicies.yaml (namespace circleguard).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-traces-from-apps
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: jaeger
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: circleguard
+      ports:
+        - protocol: TCP
+          port: 4318
+---
+# Alertmanager posts the notifications to Discord (HTTPS on the Internet). Private ranges are
+# excluded so this rule does not open the cluster or the VPC.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-alertmanager-discord
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: alertmanager
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443

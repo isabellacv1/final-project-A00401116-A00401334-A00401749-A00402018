@@ -2,7 +2,7 @@ spring:
   application:
     name: circleguard-notification-service
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -12,8 +12,8 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
   mail:
-    host: localhost
-    port: 25
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:25}
     properties:
       mail:
         smtp:
@@ -25,13 +25,72 @@ auth:
   api:
     url: ${AUTH_API_URL:http://localhost:8180}
 
-jwt:
-  secret: "my-super-secret-dev-key-32-chars-long-12345678"
-  expiration: 3600000
+identity:
+  api:
+    url: ${IDENTITY_API_URL:http://localhost:8083}
 
-qr:
-  secret: "my-qr-secret-key-for-dev-1234567890"
-  expiration: 300
+# Canales externos. Los valores de ejemplo son marcadores de desarrollo:
+# al habilitar los canales reales, las credenciales vienen del archivo de secretos.
+twilio:
+  account-sid: ${TWILIO_ACCOUNT_SID:AC_MOCK_SID}
+  auth-token: ${TWILIO_AUTH_TOKEN:MOCK_TOKEN}
+  from-number: ${TWILIO_FROM_NUMBER:+15550000000}
+
+push:
+  gotify:
+    url: ${GOTIFY_URL:http://localhost:8080}
+    token: ${GOTIFY_TOKEN:MOCK_TOKEN}
+
+lms:
+  api:
+    url: ${LMS_API_URL:https://lms.university.edu/api/v1}
+
+room:
+  booking:
+    api:
+      url: ${ROOM_BOOKING_API_URL:https://facilities.university.edu/api/v1/rooms}
+
+notification:
+  url:
+    testing: ${NOTIFICATION_URL_TESTING:https://circleguard.example.com/testing}
+    isolation: ${NOTIFICATION_URL_ISOLATION:https://circleguard.example.com/isolation}
+    guidelines: ${NOTIFICATION_URL_GUIDELINES:circleguard://guidelines}
+
+logging:
+  level:
+    root: ${LOG_LEVEL:INFO}
 
 server:
   port: 8082
+
+management:
+  # Traces to Jaeger: off locally and in the tests, on in Kubernetes (component
+  # infra/k8s/platform/base/observability/tracing sets TRACING_ENABLED and the endpoint)
+  tracing:
+    enabled: ${TRACING_ENABLED:false}
+    sampling:
+      probability: 1.0
+  health:
+    mail:
+      enabled: false
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true

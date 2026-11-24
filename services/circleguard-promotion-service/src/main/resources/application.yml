@@ -2,9 +2,9 @@ spring:
   application:
     name: circleguard-promotion-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/circleguard_promotion
-    username: admin
-    password: password
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/circleguard_promotion}
+    username: ${DB_USERNAME:admin}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -13,12 +13,12 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
   neo4j:
-    uri: bolt://localhost:7687
+    uri: ${NEO4J_URI:bolt://localhost:7687}
     authentication:
-      username: neo4j
-      password: password
+      username: ${NEO4J_USERNAME:neo4j}
+      password: ${NEO4J_PASSWORD}
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -31,12 +31,50 @@ spring:
         spring.json.trusted.packages: "*"
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      # HU-28: fail in 2 s instead of the 60 s default, so a Redis outage is
+      # reported by the health probe (503) instead of hanging it.
+      timeout: 2s
+      connect-timeout: 2s
+
+jwt:
+  # Debe coincidir con el secret de auth (valida los tokens que emite auth).
+  secret: ${JWT_SECRET}
+
+logging:
+  level:
+    root: ${LOG_LEVEL:INFO}
 
 server:
   port: 8088
 
-jwt:
-  secret: "my-super-secret-dev-key-32-chars-long-12345678"
-  expiration: 3600000
+
+management:
+  # Traces to Jaeger: off locally and in the tests, on in Kubernetes (component
+  # infra/k8s/platform/base/observability/tracing sets TRACING_ENABLED and the endpoint)
+  tracing:
+    enabled: ${TRACING_ENABLED:false}
+    sampling:
+      probability: 1.0
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db,neo4j,redis
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true

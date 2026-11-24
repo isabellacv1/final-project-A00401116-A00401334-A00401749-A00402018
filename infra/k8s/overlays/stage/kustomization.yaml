@@ -1,0 +1,112 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+components:
+  - ../../platform/base/observability/scrape-annotations
+  - ../../platform/base/observability/tracing
+  - ../../components/rolling-update
+  - ../../components/hpa
+labels:
+  - pairs:
+      circleguard.io/environment: stage
+    includeSelectors: false
+images:
+  - name: 10.20.1.230:8082/circleguard/auth-service
+    newTag: 1.0.0
+  - name: 10.20.1.230:8082/circleguard/identity-service
+    newTag: 1.0.0
+  - name: 10.20.1.230:8082/circleguard/promotion-service
+    newTag: 1.0.0
+  - name: 10.20.1.230:8082/circleguard/notification-service
+    newTag: 1.0.0-dev.10
+  - name: 10.20.1.230:8082/circleguard/form-service
+    newTag: 1.0.0
+  - name: 10.20.1.230:8082/circleguard/gateway-service
+    newTag: 1.0.0
+  - name: 10.20.1.230:8082/circleguard/dashboard-service
+    newTag: 1.0.0-dev.10
+  - name: 10.20.1.230:8082/circleguard/file-service
+    newTag: 1.0.0-dev.10
+patches:
+  # stage has a single small node and the same tight quota as dev (requests.cpu 700m). The
+  # pipeline applies the nine Deployments at once, so with maxSurge 1 nine extra pods are
+  # requested together and the quota rejects them. Each service replaces its pod instead, and
+  # the rollout gets 10 minutes: in build #70 auth was Ready 9 s after the default 5 minutes.
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      namespace: circleguard
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: any
+      spec:
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 0
+            maxUnavailable: 1
+        progressDeadlineSeconds: 600
+  # Startup probe budget for the backend services: 60 x 5 s = 5 minutes instead of 30 x 5 s.
+  # In build #70 the kubelet killed auth (exit 137) while it was still starting.
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      namespace: circleguard
+      name: circleguard-.*-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/startupProbe/failureThreshold
+        value: 60
+  - target:
+      kind: ConfigMap
+      name: circleguard-common-config
+      namespace: circleguard
+    patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: circleguard-common-config
+        namespace: circleguard
+      data:
+        SPRING_PROFILES_ACTIVE: stage
+  - target:
+      kind: ConfigMap
+      name: circleguard-auth-config
+      namespace: circleguard
+    patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: circleguard-auth-config
+        namespace: circleguard
+      data:
+        CORS_ALLOWED_ORIGINS: http://10.20.3.109,https://10.20.3.109
+  - target:
+      kind: ConfigMap
+      name: circleguard-gateway-config
+      namespace: circleguard
+    patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: circleguard-gateway-config
+        namespace: circleguard
+      data:
+        CORS_ALLOWED_ORIGINS: http://10.20.3.109,https://10.20.3.109
+  - target:
+      kind: ConfigMap
+      name: circleguard-notification-config
+      namespace: circleguard
+    patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: circleguard-notification-config
+        namespace: circleguard
+      data:
+        SPRING_MAIL_HOST: reemplazar-smtp-host-stage.invalid

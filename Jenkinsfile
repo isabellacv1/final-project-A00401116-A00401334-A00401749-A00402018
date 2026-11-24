@@ -9,13 +9,93 @@ circleguardPipeline(
     sonarProjectKey: 'CircleGuard',
     // Pushes the images to the Nexus docker-hosted registry from dev and main
     publish: true,
+    // Static validation of the IaC (HU2): terraform fmt/validate + trivy
+    // misconfiguration scan, inside pinned containers. Those two stages need no
+    // AWS credentials and never touch the S3 backend; images are pulled on first use.
+    terraformValidate: true,
+    trivyScan: true,
+    // Terraform plan against the real S3 backend (plan stage, phase 1).
+    // DEV only: the library runs it only on the `dev` branch, plans only
+    // infra/terraform/envs/dev and injects the `aws-terraform-credentials`
+    // identity by name inside the Terraform commands. The plan is kept in the
+    // workspace, never archived.
+    terraformPlan: true,
+    // Terraform apply DEV: applies ONLY the plan this build produced, only for
+    // infra/terraform/envs/dev and only on the `dev` branch. The build, commit,
+    // root, SHA-256 and age of the plan are re-validated before any credential
+    // or `terraform init`/`apply`.
+    terraformApply: true,
+    // Terraform PROD (E2.3): only on `main` builds the library plans
+    // infra/terraform/envs/prod and, when the plan has changes, waits for a
+    // manual approval (input) before applying exactly that plan. A plan with
+    // no changes skips the approval and the apply. dev and the PRs never
+    // touch the PROD infrastructure.
+    terraformApplyProd: true,
+    terraformApproval: true,
+    terraformApprovalProd: true,
+    // Jenkins user IDs allowed to approve the PROD apply (comma separated).
+    terraformApprovalSubmitter: 'admin',
+    // Trivy Image: scans every image between `docker build` and `docker push`
+    // and blocks the publication on HIGH/CRITICAL (opt-in in the library).
+    trivyImageScan: true,
+    // HU-36 / E2.6: OWASP ZAP baseline scan (spider + passive rules, no active
+    // attack) of the Ingress URL that this build just deployed. High/Critical
+    // findings fail the build, Medium marks it unstable; every report is
+    // archived and published BEFORE the gate is applied. Requires deploy=true
+    // (already enabled above) and a branch in zapBranches/deployBranches (dev).
+    zapScan: true,
+    zapTargets: ['http://10.20.2.113/'],   // = k8sIngressUrls.dev
+    // HU-33: the library defaults only cover the "Parte 1" images, so the full
+    // list is declared here. deploy/docker-compose.yml pulls all of them.
+    images: [
+        [name: 'circleguard/auth-service',         dockerfile: 'services/circleguard-auth-service/Dockerfile',         context: '.'],
+        [name: 'circleguard/identity-service',     dockerfile: 'services/circleguard-identity-service/Dockerfile',     context: '.'],
+        [name: 'circleguard/promotion-service',    dockerfile: 'services/circleguard-promotion-service/Dockerfile',    context: '.'],
+        [name: 'circleguard/form-service',         dockerfile: 'services/circleguard-form-service/Dockerfile',         context: '.'],
+        [name: 'circleguard/gateway-service',      dockerfile: 'services/circleguard-gateway-service/Dockerfile',      context: '.'],
+        [name: 'circleguard/notification-service', dockerfile: 'services/circleguard-notification-service/Dockerfile', context: '.'],
+        [name: 'circleguard/dashboard-service',    dockerfile: 'services/circleguard-dashboard-service/Dockerfile',    context: '.'],
+        [name: 'circleguard/file-service',         dockerfile: 'services/circleguard-file-service/Dockerfile',         context: '.'],
+        [name: 'circleguard/web',                  dockerfile: 'mobile/Dockerfile',                                    context: 'mobile'],
+    ],
     // HU-13: deploy the published images to the dev environment and verify
     // that every component is available.
     deploy: true,
     environment: 'dev',
+    services: [
+        [name: 'gateway',      port: 8087],
+        [name: 'auth',         port: 8180],
+        [name: 'identity',     port: 8083],
+        [name: 'form',         port: 8086],
+        [name: 'promotion',    port: 8088],
+        [name: 'notification', port: 8082],
+        [name: 'dashboard',    port: 8084],
+        [name: 'file',         port: 8085],
+        [name: 'web',          port: 8081, path: '/'],
+    ],
     // HU-14: the E2E tests gate the promotion dev -> stage, and promoting to
     // prod always waits for a manual approval (input).
     e2e: true,
     promote: true,
+    // No kubeconfigCredentialId here: a single value would be used for every
+    // environment, so stage and prod would be deployed with the dev cluster.
+    // Without it the library uses <env>-kubeconfig and <env>-k8s-token for
+    // each one (dev-, stage- and prod-).
+    // Every cluster gets the circleguard-deployer identity from
+    // infra/k8s/platform/base/rbac-deployer.yaml, so the context name is the same.
+    k8sContexts: [
+        dev:   'circleguard-deployer',
+        stage: 'circleguard-deployer',
+        prod:  'circleguard-deployer',
+    ],
+    // Private IPs of each k3s node (same ones as in infra/k8s/tls/overlays/<env>).
+    k8sIngressUrls: [
+        dev:   'http://10.20.2.113/',
+        stage: 'http://10.20.3.109/',
+        prod:  'http://10.20.4.229/',
+    ],
+    // dev restarts the nine services at once; wait up to 10 min per Deployment (same as
+    // progressDeadlineSeconds in infra/k8s/overlays/dev)
+    k8sRolloutTimeout: 600,
     discordCredentialsId: 'discord-webhook-url'
 )

@@ -2,12 +2,43 @@ spring:
   application:
     name: circleguard-file-service
 
-# Placeholder for S3/MinIO configuration if needed later
-# aws:
-#   s3:
-#     endpoint: http://localhost:9000
-#     access-key: minioadmin
-#     secret-key: minioadmin
+file:
+  storage:
+    # Montado sobre el volumen fileuploads en el compose.
+    path: ${FILE_STORAGE_PATH:uploads}
+
+logging:
+  level:
+    root: ${LOG_LEVEL:INFO}
 
 server:
   port: 8085
+
+management:
+  # Traces to Jaeger: off locally and in the tests, on in Kubernetes (component
+  # infra/k8s/platform/base/observability/tracing sets TRACING_ENABLED and the endpoint)
+  tracing:
+    enabled: ${TRACING_ENABLED:false}
+    sampling:
+      probability: 1.0
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true

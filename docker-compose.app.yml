@@ -1,12 +1,27 @@
-# Application layer for CircleGuard: the five core services and the web app.
+# Application layer for LOCAL development: builds the eight services and the web
+# app from this checkout and runs them on the local Docker engine.
 #
 # Run together with the infrastructure file:
 #   docker compose -f docker-compose.dev.yml -f docker-compose.app.yml up -d --build
+#
+# Configuration is external, never hardcoded (HU-34). Compose reads the variables
+# from the `.env` file at the repository root (ignored by Git, see `.env.example`)
+# or from the shell:
+#   DB_*, NEO4J_*, REDIS_*, KAFKA_*  -> in-network defaults, overridable
+#   JWT_*, QR_*, VAULT_*, LDAP_PASSWORD, DB_PASSWORD, NEO4J_PASSWORD
+#                                    -> mandatory, no default; `${VAR:?}` stops
+#                                       Compose before starting a half-configured stack
+#   LOG_LEVEL, JWT_EXPIRATION, ...   -> behaviour that changes per environment
 #
 # Inside the network services reach each other by service name
 # (postgres, neo4j, redis, kafka, openldap, identity, ...). Kafka uses the
 # INTERNAL listener on kafka:29092 because the host listener advertises
 # localhost:9092 and would be unreachable from inside a container.
+#
+# Resilience (HU-28): every container runs with `restart: unless-stopped`, so Docker
+# starts it again when its process exits (crash, ExitOnOutOfMemoryError, host reboot).
+# The healthcheck detects a running service that cannot serve requests; it does not
+# restart it. See docs/operaciones/patrones.md.
 
 services:
   auth:
@@ -15,20 +30,23 @@ services:
       context: .
       dockerfile: services/circleguard-auth-service/Dockerfile
     container_name: circleguard-auth-service
+    restart: unless-stopped
     ports:
       - "8180:8180"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/circleguard_auth
-      SPRING_DATASOURCE_USERNAME: admin
-      SPRING_DATASOURCE_PASSWORD: password
-      IDENTITY_API_URL: http://identity:8083
-      SPRING_LDAP_URLS: ldap://openldap:389
-      SPRING_LDAP_BASE: dc=circleguard,dc=edu
-      SPRING_LDAP_USERNAME: cn=admin,dc=circleguard,dc=edu
-      SPRING_LDAP_PASSWORD: admin
-      # qr.expiration is read as milliseconds; without this override the
-      # generated token lives 300 ms and the gateway sees it already expired.
-      QR_EXPIRATION: 60000
+      DB_URL: jdbc:postgresql://${DB_HOST:-postgres}:${DB_PORT:-5432}/circleguard_auth
+      DB_USERNAME: ${DB_USERNAME:-admin}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required (see .env.example)}
+      IDENTITY_API_URL: ${IDENTITY_API_URL:-http://identity:8083}
+      LDAP_URL: ${LDAP_URL:-ldap://openldap:389}
+      LDAP_BASE: ${LDAP_BASE:-dc=circleguard,dc=edu}
+      LDAP_USERNAME: ${LDAP_USERNAME:-cn=admin,dc=circleguard,dc=edu}
+      LDAP_PASSWORD: ${LDAP_PASSWORD:?LDAP_PASSWORD is required (see .env.example)}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required (see .env.example)}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-3600000}
+      QR_SECRET: ${QR_SECRET:?QR_SECRET is required (see .env.example)}
+      QR_EXPIRATION: ${QR_EXPIRATION:-60000}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     networks:
       - circleguard-net
     depends_on:
@@ -45,13 +63,19 @@ services:
       context: .
       dockerfile: services/circleguard-identity-service/Dockerfile
     container_name: circleguard-identity-service
+    restart: unless-stopped
     ports:
       - "8083:8083"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/circleguard_identity
-      SPRING_DATASOURCE_USERNAME: admin
-      SPRING_DATASOURCE_PASSWORD: password
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      DB_URL: jdbc:postgresql://${DB_HOST:-postgres}:${DB_PORT:-5432}/circleguard_identity
+      DB_USERNAME: ${DB_USERNAME:-admin}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required (see .env.example)}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+      VAULT_SECRET: ${VAULT_SECRET:?VAULT_SECRET is required (see .env.example)}
+      VAULT_SALT: ${VAULT_SALT:?VAULT_SALT is required (see .env.example)}
+      VAULT_HASH_SALT: ${VAULT_HASH_SALT:?VAULT_HASH_SALT is required (see .env.example)}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required (see .env.example)}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     networks:
       - circleguard-net
     depends_on:
@@ -66,18 +90,21 @@ services:
       context: .
       dockerfile: services/circleguard-promotion-service/Dockerfile
     container_name: circleguard-promotion-service
+    restart: unless-stopped
     ports:
       - "8088:8088"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/circleguard_promotion
-      SPRING_DATASOURCE_USERNAME: admin
-      SPRING_DATASOURCE_PASSWORD: password
-      SPRING_NEO4J_URI: bolt://neo4j:7687
-      SPRING_NEO4J_AUTHENTICATION_USERNAME: neo4j
-      SPRING_NEO4J_AUTHENTICATION_PASSWORD: password
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: 6379
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      DB_URL: jdbc:postgresql://${DB_HOST:-postgres}:${DB_PORT:-5432}/circleguard_promotion
+      DB_USERNAME: ${DB_USERNAME:-admin}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required (see .env.example)}
+      NEO4J_URI: ${NEO4J_URI:-bolt://neo4j:7687}
+      NEO4J_USERNAME: ${NEO4J_USERNAME:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:?NEO4J_PASSWORD is required (see .env.example)}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required (see .env.example)}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     networks:
       - circleguard-net
     depends_on:
@@ -96,13 +123,15 @@ services:
       context: .
       dockerfile: services/circleguard-form-service/Dockerfile
     container_name: circleguard-form-service
+    restart: unless-stopped
     ports:
       - "8086:8086"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/circleguard_form
-      SPRING_DATASOURCE_USERNAME: admin
-      SPRING_DATASOURCE_PASSWORD: password
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      DB_URL: jdbc:postgresql://${DB_HOST:-postgres}:${DB_PORT:-5432}/circleguard_form
+      DB_USERNAME: ${DB_USERNAME:-admin}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required (see .env.example)}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     networks:
       - circleguard-net
     depends_on:
@@ -117,15 +146,76 @@ services:
       context: .
       dockerfile: services/circleguard-gateway-service/Dockerfile
     container_name: circleguard-gateway-service
+    restart: unless-stopped
     ports:
       - "8087:8087"
     environment:
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: 6379
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      QR_SECRET: ${QR_SECRET:?QR_SECRET is required (see .env.example)}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     networks:
       - circleguard-net
     depends_on:
       redis:
+        condition: service_healthy
+
+  notification:
+    image: circleguard/notification-service:1.0.0
+    build:
+      context: .
+      dockerfile: services/circleguard-notification-service/Dockerfile
+    container_name: circleguard-notification-service
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+      AUTH_API_URL: ${AUTH_API_URL:-http://auth:8180}
+      IDENTITY_API_URL: ${IDENTITY_API_URL:-http://identity:8083}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    networks:
+      - circleguard-net
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  file:
+    image: circleguard/file-service:1.0.0
+    build:
+      context: .
+      dockerfile: services/circleguard-file-service/Dockerfile
+    container_name: circleguard-file-service
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    environment:
+      FILE_STORAGE_PATH: ${FILE_STORAGE_PATH:-/app/uploads}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - fileuploads:/app/uploads
+    networks:
+      - circleguard-net
+
+  dashboard:
+    image: circleguard/dashboard-service:1.0.0
+    build:
+      context: .
+      dockerfile: services/circleguard-dashboard-service/Dockerfile
+    container_name: circleguard-dashboard-service
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    environment:
+      DB_URL: jdbc:postgresql://${DB_HOST:-postgres}:${DB_PORT:-5432}/circleguard_dashboard
+      DB_USERNAME: ${DB_USERNAME:-admin}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required (see .env.example)}
+      CIRCLEGUARD_PROMOTION_SERVICE_URL: ${CIRCLEGUARD_PROMOTION_SERVICE_URL:-http://promotion:8088}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    networks:
+      - circleguard-net
+    depends_on:
+      postgres:
         condition: service_healthy
 
   web:
@@ -134,6 +224,7 @@ services:
       context: mobile
       dockerfile: Dockerfile
     container_name: circleguard-web
+    restart: unless-stopped
     # Published on 8081 because the services' CORS policy only accepts
     # browser requests from http://localhost:8081 (and :8080).
     ports:
@@ -146,6 +237,9 @@ services:
       FORM_BASE_URL: http://localhost:8086
       GATEWAY_BASE_URL: http://localhost:8087
       PROMOTION_BASE_URL: http://localhost:8088
+      NOTIFICATION_BASE_URL: http://localhost:8082
+      FILE_BASE_URL: http://localhost:8085
+      DASHBOARD_BASE_URL: http://localhost:8084
     networks:
       - circleguard-net
     depends_on:
@@ -159,3 +253,13 @@ services:
         condition: service_started
       gateway:
         condition: service_started
+      notification:
+        condition: service_started
+      file:
+        condition: service_started
+      dashboard:
+        condition: service_started
+
+# Uploaded files of the file service (merged with the volumes of the infrastructure file).
+volumes:
+  fileuploads:

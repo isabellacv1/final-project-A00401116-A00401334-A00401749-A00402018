@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: circleguard-dashboard-config
+  namespace: circleguard
+data:
+  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres.circleguard-data.svc.cluster.local:5432/circleguard_dashboard
+  SPRING_DATASOURCE_USERNAME: admin
+  CIRCLEGUARD_PROMOTION_SERVICE_URL: http://promotion:8088

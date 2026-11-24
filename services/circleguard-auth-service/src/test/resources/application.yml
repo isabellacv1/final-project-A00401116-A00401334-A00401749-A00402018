@@ -14,3 +14,7 @@ spring:
     database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
       ddl-auto: create-drop
+  # The main application.yml is replaced by this file, and the LDAP password has no
+  # default in code (HU-34): a missing secret must stop the service, not fall back.
+  ldap:
+    password: test-ldap-password
